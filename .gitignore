@@ -1,0 +1,5 @@
+.build/
+dist/
+packaging/AppIcon.iconset/
+/agent/agent
+.DS_Store
