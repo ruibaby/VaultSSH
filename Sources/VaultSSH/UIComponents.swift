@@ -43,8 +43,9 @@ struct ErrorBanner: View {
 }
 
 extension View {
-    @ViewBuilder func primaryActionStyle() -> some View {
-        if #available(macOS 26.0, *) { buttonStyle(.glassProminent) }
+    @ViewBuilder func primaryActionStyle(inPanel: Bool = false) -> some View {
+        if inPanel { buttonStyle(RequestPrimaryButtonStyle()) }
+        else if #available(macOS 26.0, *) { buttonStyle(.glassProminent) }
         else { buttonStyle(.borderedProminent) }
     }
 }

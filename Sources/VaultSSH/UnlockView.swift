@@ -4,6 +4,7 @@ struct UnlockControls: View {
     @EnvironmentObject private var model: AppModel
     @State private var secret = ""
     @State private var usePIN = false
+    var inPanel = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -12,7 +13,7 @@ struct UnlockControls: View {
                     secret = ""
                     Task { await model.unlockWithSystem() }
                 }
-                .primaryActionStyle().disabled(model.isBusy)
+                .primaryActionStyle(inPanel: inPanel).disabled(model.isBusy)
             }
             if model.pinEnabled {
                 Picker(L10n.text("Unlock Method"), selection: $usePIN) {
@@ -25,10 +26,15 @@ struct UnlockControls: View {
                 .textFieldStyle(.roundedBorder).disabled(model.isUnlocking)
                 .onSubmit(unlock)
             HStack {
+                if inPanel {
+                    Button(L10n.text("Cancel")) { secret = ""; model.cancelUnlock() }
+                        .buttonStyle(.bordered).controlSize(.large).keyboardShortcut(.cancelAction)
+                    Spacer()
+                }
                 if model.isUnlocking { ProgressView().controlSize(.small) }
                 Button(model.isUnlocking ? L10n.text("Unlocking…") : L10n.text("Unlock"), action: unlock)
-                    .primaryActionStyle().disabled(secret.isEmpty || model.isBusy)
-                if model.isUnlocking {
+                    .primaryActionStyle(inPanel: inPanel).disabled(secret.isEmpty || model.isBusy)
+                if model.isUnlocking && !inPanel {
                     Button(L10n.text("Cancel")) { secret = ""; model.cancelUnlock() }
                 }
             }
@@ -60,10 +66,9 @@ struct UnlockPanelView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Label(L10n.text("Unlock SSH Keys"), systemImage: "lock.open").font(.headline)
+            RequestHeader(title: L10n.text("Unlock SSH Keys"), symbol: "lock.open")
             if let request {
-                Text(request.callerDisplay).font(.title3.weight(.semibold))
-                if let path = request.executable { Text(path).font(.caption.monospaced()).textSelection(.enabled) }
+                RequestCaller(request: request)
                 Text(L10n.text("Signing requires separate approval."))
                     .font(.callout).foregroundStyle(.secondary)
                 TimelineView(.periodic(from: .now, by: 1)) { timeline in
@@ -71,19 +76,19 @@ struct UnlockPanelView: View {
                         .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                 }
             }
-            if model.cliReady { UnlockControls() }
-            else { Text(L10n.text("Set up and sign in to the CLI in Settings first.")) }
-            if let error = model.errorMessage { Text(error).font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
             Divider()
-            HStack {
-                Spacer()
-                Button(L10n.text("Cancel")) { model.cancelUnlock() }.keyboardShortcut(.cancelAction)
+            if model.cliReady { UnlockControls(inPanel: true) }
+            else {
+                Text(L10n.text("Set up and sign in to the CLI in Settings first."))
+                HStack {
+                    Spacer()
+                    Button(L10n.text("Cancel")) { model.cancelUnlock() }
+                        .buttonStyle(.bordered).controlSize(.large).keyboardShortcut(.cancelAction)
+                }
             }
+            if let error = model.errorMessage { Text(error).font(.callout).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
         }
-        .padding(20).frame(width: 440, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-        .overlay { RoundedRectangle(cornerRadius: 16).strokeBorder(.primary.opacity(0.1)) }
-        .shadow(color: .black.opacity(0.18), radius: 12, y: 5)
+        .modifier(RequestCard())
     }
 }
 

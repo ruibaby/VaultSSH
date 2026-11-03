@@ -119,33 +119,21 @@ struct ApprovalView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 10) {
-                Image(systemName: "key.horizontal.fill")
-                    .foregroundStyle(.tint).font(.title3)
-                Text(L10n.text("Allow this SSH signature?")).font(.headline)
-                Spacer()
-                Text("VaultSSH").font(.caption).foregroundStyle(.secondary)
-            }
-            VStack(alignment: .leading, spacing: 10) {
-                Text(request.callerDisplay).font(.title3.weight(.semibold))
-                DetailValue(title: L10n.text("Calling Application"), value: request.executable.flatMap { $0.isEmpty ? nil : $0 } ?? L10n.text("Unknown caller. Only one-time approval is available."), monospaced: true)
-                if let parent = request.parentExecutable, !parent.isEmpty {
-                    DetailValue(title: L10n.text("Parent Process"), value: parent, monospaced: true)
-                }
-                Text("PID \(String(request.pid ?? 0))").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-            }
-            Divider()
-            VStack(alignment: .leading, spacing: 6) {
-                Label(request.keyName ?? L10n.text("Unknown key"), systemImage: "key").font(.callout.weight(.medium))
+            RequestHeader(title: L10n.text("Allow this SSH signature?"), symbol: "key.horizontal.fill")
+            RequestCaller(request: request)
+            VStack(alignment: .leading, spacing: 8) {
+                Label(request.keyName ?? L10n.text("Unknown key"), systemImage: "key")
+                    .font(.system(size: 15, weight: .semibold))
                 if let fingerprint = request.fingerprint {
-                    Text(fingerprint).font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+                    Text(fingerprint).font(.system(size: 12, design: .monospaced))
                         .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                 }
             }
             Text(request.cacheAllowed == true
                  ? L10n.text("Applies only to this caller, parent process and key.")
                  : L10n.text("Unknown processes and script interpreters require one-time approval."))
-                .font(.caption).foregroundStyle(.secondary)
+                .font(.callout).foregroundStyle(.secondary)
+            Divider()
             TimelineView(.periodic(from: .now, by: 1)) { timeline in
                 let remaining = max(0, Int(ceil(request.expiration.timeIntervalSince(timeline.date))))
                 VStack(alignment: .leading, spacing: 12) {
@@ -164,16 +152,13 @@ struct ApprovalView: View {
                             .disabled(request.cacheAllowed != true)
 
                         Button(L10n.text("Allow Once"), action: onOnce)
-                            .primaryActionStyle()
+                            .buttonStyle(RequestPrimaryButtonStyle())
                     }
+                    .buttonStyle(.bordered).controlSize(.large)
                     .disabled(remaining == 0)
                 }
             }
         }
-        .padding(20)
-        .frame(width: 440, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 16).strokeBorder(.primary.opacity(0.1)) }
-        .shadow(color: .black.opacity(0.18), radius: 12, y: 5)
+        .modifier(RequestCard())
     }
 }
