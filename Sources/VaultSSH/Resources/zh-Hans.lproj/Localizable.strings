@@ -184,7 +184,6 @@
 "Could not protect the PIN session." = "无法保护 PIN 会话。";
 "Disable PIN" = "停用 PIN";
 "Enable PIN" = "启用 PIN";
-"Enabled for this app session" = "已启用，本次运行有效";
 "Incorrect PIN. %ld attempts remaining." = "PIN 不正确，还可尝试 %ld 次。";
 "Lock After Inactivity" = "闲置自动锁定";
 "Never" = "不自动锁定";
@@ -220,4 +219,9 @@
 "Quick Unlock Settings…" = "快速解锁设置…";
 "Saves the session in Keychain, not your password. Authentication is required each time." = "将会话存入钥匙串，不保存主密码；每次解锁需系统认证。";
 "Unlock the vault to set a PIN." = "先解锁保险库以设置 PIN。";
-"Set a new PIN after quitting, unlocking with your vault password, or five incorrect attempts." = "退出 App、使用主密码解锁或连续输错 5 次后，需重新设置 PIN。";
+"Enabled" = "已启用";
+"Unlock with your vault password to use PIN." = "使用主密码解锁后可用";
+"PIN is saved in Keychain. Restarting or five incorrect attempts requires your vault password; your PIN stays the same." = "PIN 保存在钥匙串中。重启或连续输错 5 次后需用主密码解锁，PIN 无需重设。";
+"Saved PIN data is invalid. Disable PIN and set it again." = "保存的 PIN 数据无效，请停用 PIN 后重新设置。";
+"Could not access the saved PIN in Keychain (code %@)." = "无法访问钥匙串中的 PIN 数据（代码 %@）。";
+"Check your vault account before setting a PIN." = "请先确认保险库账号，再设置 PIN。";

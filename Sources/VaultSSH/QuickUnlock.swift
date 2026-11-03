@@ -16,48 +16,45 @@ struct SavedSession: Codable, Equatable, Sendable {
     }
 }
 
-// Only ciphertext and a random salt survive a PIN lock. Neither is persisted.
-// The five-attempt limit is an application policy, not a hardware security boundary.
-struct PINSession {
-    private var ciphertext: Data?
-    private let salt: Data
-    private(set) var attemptsRemaining = 5
-    var isAvailable: Bool { ciphertext != nil && attemptsRemaining > 0 }
-
-    static func isValid(_ pin: String) -> Bool {
-        (6...12).contains(pin.utf8.count) && pin.utf8.allSatisfy { (48...57).contains($0) }
-    }
+// Persisted PIN material contains no vault session or plaintext PIN/private key.
+// The public key seals a fresh session after master-password unlock, without the PIN.
+struct PINConfiguration: Codable, Sendable {
+    let version: Int
+    let salt: Data
+    let publicKey: Data
+    let wrappedPrivateKey: Data
+    let cliPath: String
+    let email: String?
+    let server: String?
 
     init(pin: String, session: SavedSession) throws {
-        guard Self.isValid(pin) else { throw CLIError.failed(L10n.text("Use 6–12 digits for your PIN.")) }
+        guard PINSession.isValid(pin) else { throw CLIError.failed(L10n.text("Use 6–12 digits for your PIN.")) }
+        version = 1
         var bytes = [UInt8](repeating: 0, count: 32)
         guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else {
             throw CLIError.failed(L10n.text("Could not create secure random data."))
         }
         salt = Data(bytes)
-        ciphertext = try AES.GCM.seal(JSONEncoder().encode(session), using: Self.key(pin, salt: salt)).combined
+        let privateKey = Curve25519.KeyAgreement.PrivateKey()
+        publicKey = privateKey.publicKey.rawRepresentation
+        wrappedPrivateKey = try AES.GCM.seal(privateKey.rawRepresentation,
+            using: Self.key(pin, salt: salt), authenticating: publicKey).combined!
+        cliPath = session.cliPath
+        email = session.email
+        server = session.server
     }
 
-    mutating func unlock(pin: String) throws -> SavedSession {
-        guard let ciphertext, attemptsRemaining > 0 else {
-            throw CLIError.failed(L10n.text("PIN is unavailable. Use system authentication or your vault password."))
-        }
-        attemptsRemaining -= 1
-        do {
-            guard Self.isValid(pin) else { throw CLIError.failed("") }
-            let bytes = try AES.GCM.open(AES.GCM.SealedBox(combined: ciphertext), using: Self.key(pin, salt: salt))
-            let session = try JSONDecoder().decode(SavedSession.self, from: bytes)
-            attemptsRemaining = 5
-            return session
-        } catch {
-            if attemptsRemaining == 0 { self.ciphertext = nil }
-            throw CLIError.failed(attemptsRemaining == 0
-                ? L10n.text("PIN disabled after five failed attempts. Use system authentication or your vault password.")
-                : L10n.text("Incorrect PIN. %ld attempts remaining.", attemptsRemaining))
+    func matches(_ session: SavedSession) -> Bool {
+        cliPath == session.cliPath && email == session.email && server == session.server
+    }
+
+    func validate() throws {
+        guard version == 1, salt.count == 32, publicKey.count == 32, wrappedPrivateKey.count == 60 else {
+            throw CLIError.failed(L10n.text("Saved PIN data is invalid. Disable PIN and set it again."))
         }
     }
 
-    private static func key(_ pin: String, salt: Data) throws -> SymmetricKey {
+    static func key(_ pin: String, salt: Data) throws -> SymmetricKey {
         var derived = [UInt8](repeating: 0, count: 32)
         defer { _ = derived.withUnsafeMutableBytes { $0.initializeMemory(as: UInt8.self, repeating: 0) } }
         let result = pin.withCString { password in
@@ -69,6 +66,61 @@ struct PINSession {
         }
         guard result == kCCSuccess else { throw CLIError.failed(L10n.text("Could not protect the PIN session.")) }
         return SymmetricKey(data: derived)
+    }
+}
+
+// Only ciphertext and PIN-protected key material survive a lock. Session ciphertext
+// is never persisted. The five-attempt limit is an app policy, not a hardware boundary.
+struct PINSession {
+    let configuration: PINConfiguration
+    private var ciphertext: Data?
+    private let encapsulatedKey: Data
+    private static let context = Data("cc.ryanc.VaultSSH.pin-session.v1".utf8)
+    private(set) var attemptsRemaining = 5
+    var isAvailable: Bool { ciphertext != nil && attemptsRemaining > 0 }
+
+    static func isValid(_ pin: String) -> Bool {
+        (6...12).contains(pin.utf8.count) && pin.utf8.allSatisfy { (48...57).contains($0) }
+    }
+
+    init(pin: String, session: SavedSession) throws {
+        try self.init(configuration: PINConfiguration(pin: pin, session: session), session: session)
+    }
+
+    init(configuration: PINConfiguration, session: SavedSession) throws {
+        try configuration.validate()
+        guard configuration.matches(session) else {
+            throw CLIError.failed(L10n.text("Your CLI account changed. Unlock with your vault password."))
+        }
+        self.configuration = configuration
+        let publicKey = try Curve25519.KeyAgreement.PublicKey(rawRepresentation: configuration.publicKey)
+        var sender = try HPKE.Sender(recipientKey: publicKey, ciphersuite: .Curve25519_SHA256_ChachaPoly, info: Self.context)
+        ciphertext = try sender.seal(JSONEncoder().encode(session))
+        encapsulatedKey = sender.encapsulatedKey
+    }
+
+    mutating func unlock(pin: String) throws -> SavedSession {
+        guard let ciphertext, attemptsRemaining > 0 else {
+            throw CLIError.failed(L10n.text("PIN is unavailable. Use system authentication or your vault password."))
+        }
+        attemptsRemaining -= 1
+        do {
+            guard Self.isValid(pin) else { throw CLIError.failed("") }
+            let privateBytes = try AES.GCM.open(AES.GCM.SealedBox(combined: configuration.wrappedPrivateKey),
+                using: PINConfiguration.key(pin, salt: configuration.salt), authenticating: configuration.publicKey)
+            let privateKey = try Curve25519.KeyAgreement.PrivateKey(rawRepresentation: privateBytes)
+            guard privateKey.publicKey.rawRepresentation == configuration.publicKey else { throw CLIError.failed("") }
+            var recipient = try HPKE.Recipient(privateKey: privateKey, ciphersuite: .Curve25519_SHA256_ChachaPoly,
+                info: Self.context, encapsulatedKey: encapsulatedKey)
+            let session = try JSONDecoder().decode(SavedSession.self, from: recipient.open(ciphertext))
+            attemptsRemaining = 5
+            return session
+        } catch {
+            if attemptsRemaining == 0 { self.ciphertext = nil }
+            throw CLIError.failed(attemptsRemaining == 0
+                ? L10n.text("PIN disabled after five failed attempts. Use system authentication or your vault password.")
+                : L10n.text("Incorrect PIN. %ld attempts remaining.", attemptsRemaining))
+        }
     }
 }
 

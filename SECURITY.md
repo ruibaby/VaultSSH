@@ -67,14 +67,28 @@ time or bug-bounty program.
 ## Quick-unlock storage
 
 PIN is opt-in while the vault is unlocked. A 6–12 digit PIN derives an AES-256-GCM
-key using PBKDF2-HMAC-SHA256 (600,000 iterations) and a random 32-byte salt. Only
-the sealed session and salt are retained in app memory; the PIN, derived key and
-sealed session are not intentionally written to preferences or files. Five
-incorrect attempts discard the sealed session. Quitting, disabling PIN or a new
-master-password unlock clears PIN access. Memory zeroization is not guaranteed.
-The attempt counter is an **application policy, not a hardware-enforced limit**;
-a memory dump of the ciphertext permits offline PIN guessing. PIN does not
-protect against a debugger or compromised local account.
+wrapping key using PBKDF2-HMAC-SHA256 (600,000 iterations) and a random 32-byte salt.
+It protects a random key-agreement private key. The macOS login Keychain stores the
+wrapped private key, public key, salt, format version and CLI/account/server
+binding. It uses the creating app's default Keychain ACL and disables item sync;
+it does not use the system-authenticated data-protection Keychain item below.
+Ad-hoc app updates may require renewed Keychain access approval.
+
+After a successful master-password unlock and key load, the saved public key
+seals the fresh session using CryptoKit HPKE (Curve25519/SHA-256/ChaChaPoly).
+Only this sealed session and the public encapsulated key remain in app memory
+alongside the PIN-protected configuration. The PIN and wrapping key are not
+persisted. Neither a plaintext nor an encrypted vault session is saved by PIN
+setup; the saved configuration alone cannot restore a vault session on launch.
+Correct PIN entry unwraps the private key and opens the in-memory session.
+
+Five incorrect attempts discard the sealed session. A fresh master-password
+unlock re-enables the same PIN; quitting discards session ciphertext but retains
+PIN setup. Disabling PIN deletes its Keychain record. The attempt counter is an
+**application policy, not a hardware-enforced limit**. Stolen PIN material permits
+offline PIN guessing; a captured session ciphertext is also needed to recover
+that session. Memory zeroization is not guaranteed. PIN does not protect against
+a debugger or compromised local account.
 
 System quick unlock is a separate opt-in. It stores the session in the macOS
 data-protection Keychain with `WhenUnlockedThisDeviceOnly` and `userPresence`.

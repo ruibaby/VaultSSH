@@ -22,9 +22,10 @@ saving the same path only checks it again.
 ## Quick unlock
 
 Enable PIN in **Settings → Quick Unlock & Locking** after unlocking the vault.
-It lasts only for this app run and is cleared by a new vault-password unlock.
-After five incorrect attempts, use the vault password or an enabled system
-quick-unlock method. The PIN does not replace your Bitwarden master password.
+Your PIN setup is saved in the macOS login Keychain. After restarting or five
+incorrect attempts, unlock with your vault password once; the same PIN works
+again. Disabling PIN removes its saved setup. A Keychain access error leaves PIN
+unavailable; allow the app's Keychain request or disable PIN and set it again. The PIN does not replace your Bitwarden master password.
 
 With the app running and CLI configured, an SSH request while locked opens a
 small unlock panel, even when the main window is closed. Cancelling denies the

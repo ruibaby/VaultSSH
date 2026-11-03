@@ -17,7 +17,7 @@ final class AppModelTests: XCTestCase {
         return (AppModel(services: services, preferences: prefs, agent: AgentController(loadHistory: false)), prefs)
     }
     private func services() -> AppServices {
-        AppServices(deleteSession: {},
+        AppServices(savePIN: { _ in }, loadPIN: { nil }, deletePIN: {}, deleteSession: {},
                     resolveCLI: { path in (path.isEmpty ? "/fake/bw" : path, "2026.2.0") },
                     status: { _ in BWStatus(status: "locked", userEmail: nil, serverUrl: nil, lastSync: nil) },
                     unlock: { _, _ in "fake-session" })
@@ -28,6 +28,50 @@ final class AppModelTests: XCTestCase {
             try? await Task.sleep(nanoseconds: 1_000_000)
         }
         XCTFail("operation never reached suspension point")
+    }
+
+    func testSavedPINDoesNotUnlockOrReadKeychainOnLaunch() async {
+        var reads = 0, deletions = 0
+        var service = services()
+        service.loadPIN = { reads += 1; return nil }
+        service.deletePIN = { deletions += 1 }
+        let (_, preferences) = makeModel(service)
+        preferences.set(true, forKey: "pinConfigured")
+        let model = AppModel(services: service, preferences: preferences, agent: AgentController(loadHistory: false))
+        await model.bootstrap()
+        XCTAssertTrue(model.pinConfigured)
+        XCTAssertFalse(model.pinEnabled)
+        XCTAssertFalse(model.hasSession)
+        model.shutdown()
+        XCTAssertTrue(preferences.bool(forKey: "pinConfigured"))
+        XCTAssertEqual(reads, 0)
+        XCTAssertEqual(deletions, 0)
+    }
+
+    func testFailedMasterPasswordDoesNotLoadSavedPIN() async {
+        var reads = 0
+        var service = services()
+        service.unlock = { _, _ in throw CLIError.failed("wrong password") }
+        service.loadPIN = { reads += 1; return nil }
+        let (model, _) = makeModel(service)
+        await model.refreshCLI()
+        await model.unlock(password: "wrong")
+        XCTAssertEqual(reads, 0)
+        XCTAssertFalse(model.pinEnabled)
+        XCTAssertFalse(model.hasSession)
+    }
+
+    func testDisablePINDeletesSavedConfiguration() async {
+        var deletions = 0
+        var service = services()
+        service.deletePIN = { deletions += 1 }
+        let (_, preferences) = makeModel(service)
+        preferences.set(true, forKey: "pinConfigured")
+        let model = AppModel(services: service, preferences: preferences, agent: AgentController(loadHistory: false))
+        await model.disablePIN()
+        XCTAssertEqual(deletions, 1)
+        XCTAssertFalse(model.pinConfigured)
+        XCTAssertFalse(preferences.bool(forKey: "pinConfigured"))
     }
 
     func testAutomaticLockWhileUnlockingDoesNotStart() async {

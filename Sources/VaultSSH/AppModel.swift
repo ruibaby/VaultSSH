@@ -19,6 +19,7 @@ final class AppModel: ObservableObject {
     @Published var isInstalling = false
     @Published private(set) var systemUnlockEnabled: Bool
     @Published private(set) var pinEnabled = false
+    @Published private(set) var pinConfigured: Bool
     @Published private(set) var idleLockMinutes: Int
     @Published var showsUnlockPanel = false
     @Published private(set) var isConfiguringUnlock = false
@@ -51,6 +52,7 @@ final class AppModel: ObservableObject {
         self.preferences = preferences
         self.agent = agent ?? AgentController(preferences: preferences)
         systemUnlockEnabled = preferences.bool(forKey: "systemUnlockEnabled")
+        pinConfigured = preferences.bool(forKey: "pinConfigured")
         idleLockMinutes = preferences.integer(forKey: "idleLockMinutes")
         bwPathOverride = preferences.string(forKey: "bwPathOverride") ?? ""
         agentCancellable = self.agent.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
@@ -135,8 +137,9 @@ final class AppModel: ObservableObject {
         let resolved = await services.resolveCLI(bwPathOverride)
         guard request == detection else { return }
         if let previous = cliPath, previous != resolved?.path {
-            forgetQuickUnlock()
             lock()
+            await forgetQuickUnlock()
+            guard request == detection else { return }
         }
         cliPath = resolved?.path
         cliVersion = resolved?.version
@@ -178,8 +181,8 @@ final class AppModel: ObservableObject {
         preferences.set(value, forKey: "bwPathOverride")
         // Changing CLI can change accounts. Require a fresh unlock instead of
         // carrying an old vault session into the new executable.
-        forgetQuickUnlock()
         lock()
+        await forgetQuickUnlock()
         await refreshCLI()
         await refreshBWStatus()
     }
@@ -234,7 +237,11 @@ final class AppModel: ObservableObject {
                 session = nil
                 hasSession = false
                 errorMessage = agent.status.error
-            } else { showsUnlockPanel = false }
+            } else {
+                await restorePIN(afterUnlock: savedSession(value), token: token)
+                guard operation == token else { return }
+                showsUnlockPanel = false
+            }
         } catch {
             guard operation == token else { return }
             errorMessage = error.localizedDescription
@@ -392,17 +399,72 @@ final class AppModel: ObservableObject {
                      email: bwStatus?.userEmail, server: bwStatus?.serverUrl)
     }
 
-    func setPIN(_ pin: String, confirmation: String) {
+    func setPIN(_ pin: String, confirmation: String) async {
         guard hasSession, !isBusy, let session else { return }
         guard pin == confirmation else { errorMessage = L10n.text("The PINs do not match."); return }
+        let token = operation
+        let saved = savedSession(session)
+        guard isMockMode || saved.email?.isEmpty == false else {
+            errorMessage = L10n.text("Check your vault account before setting a PIN.")
+            return
+        }
+        isConfiguringUnlock = true
+        defer { isConfiguringUnlock = false }
         do {
-            pinSession = try PINSession(pin: pin, session: savedSession(session))
+            let protected = try await Task.detached { try PINSession(pin: pin, session: saved) }.value
+            guard operation == token, hasSession else { return }
+            if !isMockMode { try await services.savePIN(protected.configuration) }
+            pinConfigured = true
+            preferences.set(true, forKey: "pinConfigured")
+            guard operation == token, hasSession else {
+                // A lock or account change during the Keychain write invalidates
+                // setup. Keep the busy flag until cleanup finishes, preventing a
+                // newer setup from being deleted by this stale operation.
+                if !isMockMode { try await services.deletePIN() }
+                pinConfigured = false
+                preferences.set(false, forKey: "pinConfigured")
+                return
+            }
+            pinSession = protected
             pinEnabled = true
             errorMessage = nil
+        } catch { if operation == token { errorMessage = error.localizedDescription } }
+    }
+
+    func disablePIN() async {
+        guard !isConfiguringUnlock else { return }
+        pinSession = nil
+        pinEnabled = false
+        isConfiguringUnlock = true
+        defer { isConfiguringUnlock = false }
+        do {
+            if !isMockMode { try await services.deletePIN() }
+            pinConfigured = false
+            preferences.set(false, forKey: "pinConfigured")
         } catch { errorMessage = error.localizedDescription }
     }
 
-    func disablePIN() { pinSession = nil; pinEnabled = false }
+    private func restorePIN(afterUnlock saved: SavedSession, token: UUID) async {
+        // Reading the saved PIN never bootstraps a vault session: a fresh master
+        // password unlock must have succeeded first. Mock mode never uses Keychain.
+        guard !isMockMode, saved.email?.isEmpty == false else { return }
+        do {
+            let configuration = try await services.loadPIN()
+            guard operation == token, hasSession else { return }
+            guard let configuration else {
+                pinConfigured = false
+                preferences.set(false, forKey: "pinConfigured")
+                return
+            }
+            guard configuration.matches(saved) else { await disablePIN(); return }
+            pinSession = try PINSession(configuration: configuration, session: saved)
+            pinConfigured = true
+            preferences.set(true, forKey: "pinConfigured")
+            pinEnabled = true
+        } catch {
+            if operation == token { errorMessage = error.localizedDescription }
+        }
+    }
 
     func enableSystemUnlock() async {
         guard hasSession, !isBusy, let session else { return }
@@ -427,9 +489,11 @@ final class AppModel: ObservableObject {
         catch { errorMessage = error.localizedDescription }
     }
 
-    private func forgetQuickUnlock() {
-        disablePIN()
+    private func forgetQuickUnlock() async {
+        pinSession = nil
+        pinEnabled = false
         if systemUnlockEnabled { disableSystemUnlock() }
+        await disablePIN()
     }
 
     func unlockWithPIN(_ pin: String) async {
@@ -469,7 +533,7 @@ final class AppModel: ObservableObject {
                 guard operation == token else { return }
                 bwStatus = status
                 guard saved.matches(path: cliPath, status: status) else {
-                    forgetQuickUnlock()
+                    await forgetQuickUnlock()
                     errorMessage = L10n.text("Your CLI account changed. Unlock with your vault password.")
                     return
                 }

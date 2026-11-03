@@ -21,8 +21,11 @@ Intel builds are not covered by CI and should not be advertised as validated.
    Check English and Chinese UI, real CLI unlock,
    approval, deny, revocation, key order, sleep, screen lock, 15-minute idle lock
    and relaunch with a disposable test vault. Confirm waking stays locked.
-   Verify PIN setup, failed-attempt lockout, closed-window unlock prompts and
-   separate signature approval. For system quick unlock, test a signed and
+   Verify PIN setup, restart requiring a master password, reuse of the original
+   PIN after master unlock, five-attempt lockout, account changes, Keychain access
+   denial, disable/delete, closed-window prompts and separate signature approval.
+   Run `VAULTSSH_PIN_KEYCHAIN_TEST=1 swift test --filter PINKeychainTests` locally
+   for a disposable login-Keychain round trip. For system quick unlock, test a signed and
    provisioned build with data-protection Keychain entitlements: verify both
    Touch ID and Mac-password fallback, denial/cancellation, and upgrade access.
    Ad-hoc CI builds cannot validate this path and must show it as unavailable.

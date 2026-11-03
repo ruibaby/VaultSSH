@@ -27,6 +27,37 @@ final class QuickUnlockTests: XCTestCase {
         XCTAssertThrowsError(try pin.unlock(pin: "928461"))
     }
 
+    func testPersistedConfigurationRestoresSamePINForAFreshSession() throws {
+        let original = try PINSession(pin: "928461", session: saved)
+        let data = try JSONEncoder().encode(original.configuration)
+        let fields = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(Set(fields.keys), ["version", "salt", "publicKey", "wrappedPrivateKey", "cliPath", "email", "server"])
+        XCTAssertFalse(String(decoding: data, as: UTF8.self).contains(saved.session))
+        let stored = try JSONDecoder().decode(PINConfiguration.self, from: data)
+        let fresh = SavedSession(session: "fresh-master-password-session", cliPath: saved.cliPath, email: saved.email, server: saved.server)
+        var restored = try PINSession(configuration: stored, session: fresh)
+        XCTAssertThrowsError(try restored.unlock(pin: "000000"))
+        XCTAssertEqual(try restored.unlock(pin: "928461"), fresh)
+    }
+
+    func testConfigurationCannotBeReusedForAnotherAccount() throws {
+        let configuration = try PINConfiguration(pin: "928461", session: saved)
+        let other = SavedSession(session: "new", cliPath: saved.cliPath, email: "other@example.invalid", server: saved.server)
+        XCTAssertThrowsError(try PINSession(configuration: configuration, session: other))
+    }
+
+    func testTamperedPINMaterialCannotUnlock() throws {
+        let configuration = try PINConfiguration(pin: "928461", session: saved)
+        var fields = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(configuration)) as? [String: Any])
+        fields["wrappedPrivateKey"] = Data(repeating: 0, count: 60).base64EncodedString()
+        let tampered = try JSONDecoder().decode(PINConfiguration.self, from: JSONSerialization.data(withJSONObject: fields))
+        var session = try PINSession(configuration: tampered, session: saved)
+        XCTAssertThrowsError(try session.unlock(pin: "928461"))
+        fields["version"] = 999
+        let unsupported = try JSONDecoder().decode(PINConfiguration.self, from: JSONSerialization.data(withJSONObject: fields))
+        XCTAssertThrowsError(try PINSession(configuration: unsupported, session: saved))
+    }
+
     func testSavedSessionIsBoundToCLIAccountAndServer() {
         let status = BWStatus(status: "locked", userEmail: saved.email, serverUrl: saved.server, lastSync: nil)
         XCTAssertTrue(saved.matches(path: "/test/bw", status: status))

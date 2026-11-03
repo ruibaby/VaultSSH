@@ -3,6 +3,15 @@ import Foundation
 // Small boundary for operations that touch credentials or external processes.
 // Tests can exercise the real model without reading the user's Keychain.
 struct AppServices {
+    var savePIN: (PINConfiguration) async throws -> Void = { value in
+        try await Task.detached { try PINKeychain.shared.save(value) }.value
+    }
+    var loadPIN: () async throws -> PINConfiguration? = {
+        try await Task.detached { try PINKeychain.shared.load() }.value
+    }
+    var deletePIN: () async throws -> Void = {
+        try await Task.detached { try PINKeychain.shared.delete() }.value
+    }
     var saveQuickSession: (SavedSession) async throws -> Void = { value in
         try await Task.detached { try QuickUnlockKeychain.save(value) }.value
     }

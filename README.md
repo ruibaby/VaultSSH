@@ -133,9 +133,11 @@ vault. If the cache contains no usable SSH keys, VaultSSH syncs once and retries
 After unlocking, open **Settings → Quick Unlock & Locking** to enable an optional
 6–12 digit PIN. Locked SSH requests open a small panel; the main window can stay
 closed. Unlocking resumes the request but still requires separate signature
-approval. Five incorrect PIN attempts disable PIN access.
+approval.
 
-PIN is memory-only: quitting or unlocking with the vault password clears it.
+PIN setup is saved in the macOS login Keychain; the PIN itself and vault session
+are not saved. After restarting or five incorrect attempts, unlock once with your
+vault password to resume using the same PIN.
 Idle locking is off by default and can be set to 5, 15, 30 or 60 minutes. Sleep,
 observed screen lock and user switching still lock the keys.
 

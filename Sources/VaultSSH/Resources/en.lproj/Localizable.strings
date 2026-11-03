@@ -184,7 +184,6 @@
 "Could not protect the PIN session." = "Could not protect the PIN session.";
 "Disable PIN" = "Disable PIN";
 "Enable PIN" = "Enable PIN";
-"Enabled for this app session" = "Enabled for this app session";
 "Incorrect PIN. %ld attempts remaining." = "Incorrect PIN. %ld attempts remaining.";
 "Lock After Inactivity" = "Lock After Inactivity";
 "Never" = "Never";
@@ -220,4 +219,9 @@
 "Quick Unlock Settings…" = "Quick Unlock Settings…";
 "Saves the session in Keychain, not your password. Authentication is required each time." = "Saves the session in Keychain, not your password. Authentication is required each time.";
 "Unlock the vault to set a PIN." = "Unlock the vault to set a PIN.";
-"Set a new PIN after quitting, unlocking with your vault password, or five incorrect attempts." = "Set a new PIN after quitting, unlocking with your vault password, or five incorrect attempts.";
+"Enabled" = "Enabled";
+"Unlock with your vault password to use PIN." = "Unlock with your vault password to use PIN.";
+"PIN is saved in Keychain. Restarting or five incorrect attempts requires your vault password; your PIN stays the same." = "PIN is saved in Keychain. Restarting or five incorrect attempts requires your vault password; your PIN stays the same.";
+"Saved PIN data is invalid. Disable PIN and set it again." = "Saved PIN data is invalid. Disable PIN and set it again.";
+"Could not access the saved PIN in Keychain (code %@)." = "Could not access the saved PIN in Keychain (code %@).";
+"Check your vault account before setting a PIN." = "Check your vault account before setting a PIN.";

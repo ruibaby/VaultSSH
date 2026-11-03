@@ -107,22 +107,23 @@ struct QuickUnlockSettings: View {
                 Text(L10n.text("Saves the session in Keychain, not your password. Authentication is required each time."))
                     .font(.caption).foregroundStyle(.secondary)
             }
-            if model.pinEnabled {
-                LabeledContent(L10n.text("PIN"), value: L10n.text("Enabled for this app session"))
-                Button(L10n.text("Disable PIN")) { model.disablePIN() }.disabled(model.isBusy)
+            if model.pinConfigured {
+                LabeledContent(L10n.text("PIN"), value: model.pinEnabled ? L10n.text("Enabled") : L10n.text("Unlock with your vault password to use PIN."))
+                Button(L10n.text("Disable PIN")) { Task { await model.disablePIN() } }.disabled(model.isBusy)
             } else {
                 SecureField(L10n.text("New PIN (6–12 digits)"), text: $pin)
                 SecureField(L10n.text("Confirm PIN"), text: $confirmation)
                 Button(L10n.text("Enable PIN")) {
-                    model.setPIN(pin, confirmation: confirmation)
+                    let value = pin, repeated = confirmation
                     pin = ""; confirmation = ""
+                    Task { await model.setPIN(value, confirmation: repeated) }
                 }
                 .disabled(!model.hasSession || model.isBusy || pin.isEmpty || confirmation.isEmpty)
             }
-            if !model.hasSession && !model.pinEnabled {
+            if !model.hasSession && !model.pinConfigured {
                 Text(L10n.text("Unlock the vault to set a PIN.")).font(.caption).foregroundStyle(.secondary)
             }
-            Text(L10n.text("Set a new PIN after quitting, unlocking with your vault password, or five incorrect attempts."))
+            Text(L10n.text("PIN is saved in Keychain. Restarting or five incorrect attempts requires your vault password; your PIN stays the same."))
                 .font(.caption).foregroundStyle(.secondary)
             Picker(L10n.text("Lock After Inactivity"), selection: Binding(get: { model.idleLockMinutes }, set: model.setIdleLockMinutes)) {
                 Text(L10n.text("Never")).tag(0)

@@ -4,7 +4,9 @@
 
 ### Added
 
-- Optional memory-only PIN unlock (6–12 digits), with a five-attempt limit.
+- Optional PIN unlock (6–12 digits), with setup saved in the login Keychain.
+  Restarting or five failed attempts requires a fresh master-password unlock;
+  the same PIN remains usable without storing a vault session on disk.
 - A keyless locked listener and compact on-demand unlock panel, followed by
   separate signature approval; cancellation and timeout reject pending requests.
 - Optional system-authenticated Keychain quick unlock for appropriately signed
