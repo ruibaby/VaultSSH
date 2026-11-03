@@ -2,9 +2,7 @@ import SwiftUI
 
 struct AccessView: View {
     @EnvironmentObject private var model: AppModel
-    @State private var password = ""
     @State private var showInstaller = false
-    @FocusState private var passwordFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -32,27 +30,15 @@ struct AccessView: View {
                 if model.agent.status.state == "error" {
                     Button(L10n.text("Retry Loading"), systemImage: "arrow.clockwise") { Task { await model.refreshKeys() } }
                         .primaryActionStyle().disabled(model.isBusy)
-                    Button(L10n.text("Unlock Again")) { model.lock(); passwordFocused = true }.buttonStyle(.borderless)
+                    Button(L10n.text("Unlock Again")) { model.lock(); model.showsUnlockPanel = true }.buttonStyle(.borderless)
                 } else {
                     Text(L10n.text("Private keys stay in agent memory. Each caller needs approval before its first signature."))
                         .font(.callout).foregroundStyle(.secondary)
                 }
             } else {
                 stepTitle("3", L10n.text("Unlock your keys"))
-                SecureField(L10n.text("Bitwarden master password"), text: $password)
-                    .textFieldStyle(.roundedBorder).focused($passwordFocused)
-                    .disabled(model.isUnlocking).onSubmit(unlock)
-                    .accessibilityLabel(L10n.text("Bitwarden master password"))
-                HStack {
-                    Button(model.isUnlocking ? L10n.text("Unlocking…") : L10n.text("Unlock"), action: unlock)
-                        .primaryActionStyle().disabled(password.isEmpty || model.isBusy)
-                    if model.isUnlocking {
-                        Button(L10n.text("Cancel")) { model.lock() }.buttonStyle(.borderless)
-                    } else {
-                        Button(L10n.text("Check Login")) { Task { await model.detectAndRetry() } }.buttonStyle(.borderless)
-                    }
-                }
-                Text(L10n.text("The session stays in memory until you lock or quit. Unlock again after sleep, screen lock or 15 minutes of inactivity."))
+                UnlockControls()
+                Text(L10n.text("Enable PIN or system authentication in Settings for quick unlock. SSH requests can open a small unlock panel."))
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -66,12 +52,7 @@ struct AccessView: View {
             Text(title).font(.headline)
         }
     }
-    private func unlock() {
-        guard !password.isEmpty, !model.isBusy else { return }
-        let value = password
-        password = ""
-        Task { await model.unlock(password: value) }
-    }
+
 }
 
 struct ConnectionView: View {

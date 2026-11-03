@@ -19,6 +19,23 @@ For self-hosted vaults, configure the server on that same CLI before login.
 Complete two-factor login in Terminal. Changing the custom path locks the app;
 saving the same path only checks it again.
 
+## Quick unlock
+
+Enable PIN in **Settings → Quick Unlock & Locking** after unlocking the vault.
+It lasts only for this app run and is cleared by a new vault-password unlock.
+After five incorrect attempts, use the vault password or an enabled system
+quick-unlock method. The PIN does not replace your Bitwarden master password.
+
+With the app running and CLI configured, an SSH request while locked opens a
+small unlock panel, even when the main window is closed. Cancelling denies the
+waiting requests and adds a short prompt cooldown. Retry a connection that
+arrived during the brief helper restart when locking.
+
+Touch ID/Mac-password quick unlock is unavailable in ad-hoc builds. It requires
+an app signed and provisioned for the data-protection Keychain. Error `-34018`
+means missing Keychain entitlements; do not work around it by storing the session
+without authentication. PIN and vault-password unlock remain available.
+
 ## SSH offers the wrong key
 
 Use the key's **… → Use First** menu. Ordering affects future requests, and other

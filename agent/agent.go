@@ -23,6 +23,7 @@ type Key struct {
 }
 
 type Agent struct {
+	unlock   *UnlockGate
 	mu       sync.RWMutex
 	keys     []*Key
 	warnings []string

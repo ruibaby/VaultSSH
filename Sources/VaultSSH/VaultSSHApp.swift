@@ -37,10 +37,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         approvalPanel = ApprovalPanelController()
-        securityMonitor = SecurityMonitor { AppModel.shared.automaticLock() }
+        securityMonitor = SecurityMonitor(idleLimit: { TimeInterval(AppModel.shared.idleLockMinutes * 60) },
+                                          lock: { AppModel.shared.automaticLock() })
         securityMonitor?.start()
         Task { @MainActor in
             await AppModel.shared.bootstrap()
+            await AppModel.shared.enableRequestListener()
         }
         // If the restored frame was saved on a display that is no longer
         // connected, bring the window back onto a visible screen.
@@ -91,6 +93,9 @@ struct MenuBarContent: View {
         }
         if model.hasSession || model.isBusy {
             Button(L10n.text("Lock")) { model.lock() }
+        }
+        if !model.hasSession {
+            Button(L10n.text("Unlock Keys…")) { model.showsUnlockPanel = true }
         }
         SettingsLink { Text(L10n.text("Settings…")) }
         Divider()

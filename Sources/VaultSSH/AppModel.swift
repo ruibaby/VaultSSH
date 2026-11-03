@@ -16,6 +16,16 @@ final class AppModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var installLog = ""
     @Published var isInstalling = false
+    @Published private(set) var systemUnlockEnabled: Bool
+    @Published private(set) var pinEnabled = false
+    @Published private(set) var idleLockMinutes: Int
+    @Published var showsUnlockPanel = false
+    @Published private(set) var isConfiguringUnlock = false
+    private var pinSession: PINSession?
+    private var systemContext: SystemUnlockContext?
+    private var listenerEnabled = false
+    private var activeUnlockRequest: String?
+    private var unlockCancellable: AnyCancellable?
     @Published private(set) var launchAtLogin = false
     @Published private(set) var launchNeedsApproval = false
     @Published private(set) var bwPathOverride: String
@@ -39,12 +49,22 @@ final class AppModel: ObservableObject {
         self.services = services
         self.preferences = preferences
         self.agent = agent ?? AgentController(preferences: preferences)
+        systemUnlockEnabled = preferences.bool(forKey: "systemUnlockEnabled")
+        idleLockMinutes = preferences.integer(forKey: "idleLockMinutes")
         bwPathOverride = preferences.string(forKey: "bwPathOverride") ?? ""
         agentCancellable = self.agent.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
+        unlockCancellable = self.agent.$unlockRequest.sink { [weak self] request in
+            guard request == nil, let requestID = self?.activeUnlockRequest else { return }
+            Task { @MainActor [weak self] in
+                guard let self, self.activeUnlockRequest == requestID, self.agent.unlockRequest == nil,
+                      self.agent.status.state != "ready" else { return }
+                self.cancelUnlock()
+            }
+        }
     }
 
     var pendingApproval: ApprovalRequest? { agent.pendingApproval }
-    var isBusy: Bool { isUnlocking || isRefreshing || isInstalling || agent.isStarting }
+    var isBusy: Bool { isUnlocking || isRefreshing || isInstalling || isConfiguringUnlock || agent.isStarting }
     var isMockMode: Bool { ProcessInfo.processInfo.environment["VAULTSSH_MOCK_KEY"] != nil }
     var cliReady: Bool { isMockMode || (cliVersion.map(BitwardenCLI.isSupported) ?? false) }
     var loginCommand: String { "\(Self.shellQuote(cliPath ?? "bw")) login" }
@@ -79,6 +99,7 @@ final class AppModel: ObservableObject {
         bootstrapped = true
         if isMockMode {
             cliVersion = L10n.text("Demo mode")
+            cliPath = "bw"
             session = "mock"
             hasSession = true
             await agent.start(session: "mock", bwPath: "bw")
@@ -97,9 +118,18 @@ final class AppModel: ObservableObject {
         let request = UUID()
         detection = request
         isDetecting = true
-        defer { if detection == request { isDetecting = false } }
+        defer {
+            if detection == request {
+                isDetecting = false
+                if listenerEnabled { Task { await listenWhileLocked() } }
+            }
+        }
         let resolved = await services.resolveCLI(bwPathOverride)
         guard request == detection else { return }
+        if let previous = cliPath, previous != resolved?.path {
+            forgetQuickUnlock()
+            lock()
+        }
         cliPath = resolved?.path
         cliVersion = resolved?.version
         bwStatus = nil
@@ -140,13 +170,15 @@ final class AppModel: ObservableObject {
         preferences.set(value, forKey: "bwPathOverride")
         // Changing CLI can change accounts. Require a fresh unlock instead of
         // carrying an old vault session into the new executable.
+        forgetQuickUnlock()
         lock()
         await refreshCLI()
         await refreshBWStatus()
     }
 
     func retryStartIfPossible() async {
-        guard !isBusy, cliReady, let session, let cliPath, agent.status.state != "ready" else { return }
+        guard !isBusy, cliReady, let cliPath, agent.status.state != "ready" else { return }
+        guard let session else { await listenWhileLocked(); return }
         let token = operation
         await agent.start(session: session, bwPath: cliPath)
         guard operation == token else { return }
@@ -158,24 +190,40 @@ final class AppModel: ObservableObject {
         operation = UUID()
         let token = operation
         isUnlocking = true
+        activeUnlockRequest = agent.unlockRequest?.id
         errorMessage = nil
-        defer { if operation == token { isUnlocking = false; unlockTask = nil } }
+        defer { if operation == token { isUnlocking = false; unlockTask = nil; activeUnlockRequest = nil } }
         do {
             let task = Task { try await services.unlock(cliPath, password) }
             unlockTask = task
             let value = try await task.value
             guard operation == token, !Task.isCancelled else { return }
             guard !value.isEmpty else { throw CLIError.failed(L10n.text("The CLI returned no session. Please retry.")) }
-            agent.stop()
+            pinSession = nil
+            pinEnabled = false
             session = nil
             hasSession = false
             session = value
             hasSession = true
             await refreshBWStatus()
             guard operation == token, !Task.isCancelled else { return }
-            await agent.start(session: value, bwPath: cliPath)
+            if systemUnlockEnabled {
+                do { try await services.saveQuickSession(savedSession(value)) }
+                catch {
+                    systemUnlockEnabled = false
+                    preferences.set(false, forKey: "systemUnlockEnabled")
+                    errorMessage = error.localizedDescription
+                }
+                if !systemUnlockEnabled { try? services.deleteQuickSession() }
+                guard operation == token, !Task.isCancelled else { return }
+            }
+            await agent.resume(session: value, bwPath: cliPath, requestID: activeUnlockRequest)
             guard operation == token else { return }
-            if agent.status.state == "error" { errorMessage = agent.status.error }
+            if agent.status.state != "ready" {
+                session = nil
+                hasSession = false
+                errorMessage = agent.status.error
+            } else { showsUnlockPanel = false }
         } catch {
             guard operation == token else { return }
             errorMessage = error.localizedDescription
@@ -186,12 +234,17 @@ final class AppModel: ObservableObject {
         operation = UUID()
         unlockTask?.cancel()
         unlockTask = nil
+        systemContext?.cancel()
+        systemContext = nil
+        activeUnlockRequest = nil
+        showsUnlockPanel = false
         session = nil
         hasSession = false
         isUnlocking = false
         isRefreshing = false
         connectionCheck = nil
         agent.stop()
+        if listenerEnabled { Task { await listenWhileLocked() } }
         guard !isMockMode else { return }
         // Persist before deletion: a denied Keychain deletion must not restore
         // the session automatically the next time the app launches.
@@ -245,7 +298,7 @@ final class AppModel: ObservableObject {
         lock()
         isInstalling = true
         installLog = L10n.text("Installing @bitwarden/cli@%@ in\n%@\n\n", String(BitwardenCLI.compatibleVersion), String(AppPaths.tools.path))
-        defer { isInstalling = false }
+        defer { isInstalling = false; if listenerEnabled { Task { await listenWhileLocked() } } }
 
         let npmPath = await Task.detached { BitwardenCLI.shellWhich("npm") }.value
         guard let npmPath else {
@@ -295,9 +348,148 @@ final class AppModel: ObservableObject {
     }
 
     func automaticLock() {
-        guard hasSession || isUnlocking || isRefreshing || agent.isStarting else { return }
+        guard hasSession || isUnlocking || isRefreshing || agent.isStarting || agent.unlockRequest != nil || showsUnlockPanel else { return }
         lock()
     }
 
-    func shutdown() { lock() }
+    func shutdown() {
+        listenerEnabled = false
+        pinSession = nil
+        pinEnabled = false
+        lock()
+    }
+
+    func enableRequestListener() async {
+        listenerEnabled = true
+        await listenWhileLocked()
+    }
+
+    private func listenWhileLocked() async {
+        guard listenerEnabled, !hasSession, !isUnlocking, !isInstalling, !isDetecting, !agent.helperRunning,
+              cliReady, let cliPath else { return }
+        await agent.start(session: "", bwPath: cliPath, locked: true)
+    }
+
+    func setIdleLockMinutes(_ minutes: Int) {
+        guard [0, 5, 15, 30, 60].contains(minutes) else { return }
+        idleLockMinutes = minutes
+        preferences.set(minutes, forKey: "idleLockMinutes")
+    }
+
+    private func savedSession(_ value: String) -> SavedSession {
+        SavedSession(session: value, cliPath: URL(fileURLWithPath: cliPath ?? "bw").resolvingSymlinksInPath().path,
+                     email: bwStatus?.userEmail, server: bwStatus?.serverUrl)
+    }
+
+    func setPIN(_ pin: String, confirmation: String) {
+        guard hasSession, !isBusy, let session else { return }
+        guard pin == confirmation else { errorMessage = L10n.text("The PINs do not match."); return }
+        do {
+            pinSession = try PINSession(pin: pin, session: savedSession(session))
+            pinEnabled = true
+            errorMessage = nil
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    func disablePIN() { pinSession = nil; pinEnabled = false }
+
+    func enableSystemUnlock() async {
+        guard hasSession, !isBusy, let session else { return }
+        let token = operation
+        isConfiguringUnlock = true
+        defer { isConfiguringUnlock = false }
+        do {
+            try await services.saveQuickSession(savedSession(session))
+            guard operation == token, hasSession else { try? services.deleteQuickSession(); return }
+            systemUnlockEnabled = true
+            preferences.set(true, forKey: "systemUnlockEnabled")
+            errorMessage = nil
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    func disableSystemUnlock() {
+        if systemContext != nil { cancelUnlock() }
+        systemContext?.cancel()
+        systemUnlockEnabled = false
+        preferences.set(false, forKey: "systemUnlockEnabled")
+        do { try services.deleteQuickSession() }
+        catch { errorMessage = error.localizedDescription }
+    }
+
+    private func forgetQuickUnlock() {
+        disablePIN()
+        if systemUnlockEnabled { disableSystemUnlock() }
+    }
+
+    func unlockWithPIN(_ pin: String) async {
+        guard !isBusy, pinEnabled else { return }
+        do {
+            let saved = try pinSession!.unlock(pin: pin)
+            await quickUnlock { saved }
+        } catch {
+            pinEnabled = pinSession?.isAvailable == true
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func unlockWithSystem() async {
+        guard !isBusy, systemUnlockEnabled else { return }
+        let context = SystemUnlockContext()
+        systemContext = context
+        defer { context.cancel(); if systemContext === context { systemContext = nil } }
+        await quickUnlock { try await self.services.loadQuickSession(context) }
+    }
+
+    private func quickUnlock(_ load: () async throws -> SavedSession) async {
+        guard !isBusy, cliReady, let cliPath else { return }
+        operation = UUID()
+        let token = operation
+        activeUnlockRequest = agent.unlockRequest?.id
+        isUnlocking = true
+        errorMessage = nil
+        defer { if operation == token { isUnlocking = false; activeUnlockRequest = nil } }
+        do {
+            let saved = try await load()
+            guard operation == token else { return }
+            if !isMockMode {
+                let status = try await services.status(cliPath)
+                guard operation == token else { return }
+                bwStatus = status
+                guard saved.matches(path: cliPath, status: status) else {
+                    forgetQuickUnlock()
+                    errorMessage = L10n.text("Your CLI account changed. Unlock with your vault password.")
+                    return
+                }
+            }
+            session = saved.session
+            hasSession = true
+            await agent.resume(session: saved.session, bwPath: cliPath, requestID: activeUnlockRequest)
+            guard operation == token else { return }
+            if agent.status.state == "ready" { showsUnlockPanel = false }
+            else {
+                session = nil
+                hasSession = false
+                errorMessage = agent.status.error ?? L10n.text("Unlock failed. Try your vault password.")
+            }
+        } catch is CancellationError {
+            if operation == token { errorMessage = nil }
+        } catch {
+            if operation == token { errorMessage = error.localizedDescription }
+        }
+    }
+
+    func cancelUnlock() {
+        operation = UUID()
+        unlockTask?.cancel()
+        unlockTask = nil
+        systemContext?.cancel()
+        systemContext = nil
+        activeUnlockRequest = nil
+        isUnlocking = false
+        session = nil
+        hasSession = false
+        showsUnlockPanel = false
+        agent.cancelUnlockRequest()
+        if agent.status.state == "loading" || agent.status.state == "ready" { lock() }
+    }
 }

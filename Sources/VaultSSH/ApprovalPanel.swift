@@ -12,30 +12,41 @@ final class ApprovalPanelController: NSObject {
 
     override init() {
         super.init()
-        cancellable = AppModel.shared.agent.$approvals
-            .map { $0.first }
+        let model = AppModel.shared
+        cancellable = Publishers.CombineLatest3(model.agent.$approvals, model.agent.$unlockRequest, model.$showsUnlockPanel)
+            .map { approvals, unlock, manual -> PanelState in
+                if let request = approvals.first { return .signature(request) }
+                if unlock != nil || manual { return .unlock(unlock) }
+                return .hidden
+            }
             .removeDuplicates()
             .receive(on: RunLoop.main)
-            .sink { [weak self] request in
-                Task { @MainActor in self?.update(request) }
-            }
+            .sink { [weak self] state in self?.update(state) }
     }
 
-    private func update(_ request: ApprovalRequest?) {
-        guard let request else {
+    private enum PanelState: Equatable {
+        case hidden
+        case signature(ApprovalRequest)
+        case unlock(ApprovalRequest?)
+    }
+
+    private func update(_ state: PanelState) {
+        let view: AnyView
+        switch state {
+        case .hidden:
             panel?.orderOut(nil)
             return
+        case .unlock(let request): view = AnyView(UnlockPanelView(request: request))
+        case .signature(let request):
+            view = AnyView(ApprovalView(
+                request: request,
+                graceLabel: AppModel.approvalGraceLabel,
+                onAllow: { AppModel.shared.agent.decideApproval(id: request.id, allow: true, graceSeconds: 300) },
+                onOnce: { AppModel.shared.agent.decideApproval(id: request.id, allow: true, graceSeconds: 0) },
+                onDeny: { AppModel.shared.agent.decideApproval(id: request.id, allow: false, graceSeconds: 0) }
+            ))
         }
-
-        let content = ApprovalView(
-            request: request,
-            graceLabel: AppModel.approvalGraceLabel,
-            onAllow: { AppModel.shared.agent.decideApproval(id: request.id, allow: true, graceSeconds: 300) },
-            onOnce: { AppModel.shared.agent.decideApproval(id: request.id, allow: true, graceSeconds: 0) },
-            onDeny: { AppModel.shared.agent.decideApproval(id: request.id, allow: false, graceSeconds: 0) }
-        )
-        .environmentObject(AppModel.shared)
-        .padding(12)
+        let content = view.environmentObject(AppModel.shared).padding(12)
 
         let hosting = NSHostingView(rootView: AnyView(content))
         hosting.layoutSubtreeIfNeeded()
@@ -46,6 +57,8 @@ final class ApprovalPanelController: NSObject {
         hosting.frame = NSRect(origin: .zero, size: size)
 
         let panel = panel ?? makePanel()
+        if case .unlock = state { panel.title = L10n.text("Unlock SSH Keys") }
+        else { panel.title = L10n.text("SSH Signature Request") }
         panel.contentView = hosting
         panel.setContentSize(size)
         panel.setFrameOrigin(origin(for: size))

@@ -26,6 +26,9 @@ func serveAgent(ctx context.Context, listener net.Listener, a *Agent, events *Ev
 	var handlers sync.WaitGroup
 	defer func() {
 		approver.Close()
+		if a.unlock != nil {
+			a.unlock.Close()
+		}
 		mu.Lock()
 		for conn := range active {
 			_ = conn.Close()

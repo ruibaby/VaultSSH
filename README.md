@@ -123,12 +123,28 @@ Use **… → Use First** on a key to prioritize it. Other keys remain available
 see [host-specific keys and troubleshooting](docs/troubleshooting.md).
 Change language in **System Settings → General → Language & Region → Applications**.
 
+## Quick unlock
+
+After unlocking, open **Settings → Quick Unlock & Locking** to enable an optional
+6–12 digit PIN. Locked SSH requests open a small panel; the main window can stay
+closed. Unlocking resumes the request but still requires separate signature
+approval. Five incorrect PIN attempts disable PIN access.
+
+PIN is memory-only: quitting or unlocking with the vault password clears it.
+Idle locking is off by default and can be set to 5, 15, 30 or 60 minutes. Sleep,
+observed screen lock and user switching still lock the keys.
+
+**Touch ID or Mac Password** uses a system-authentication-protected Keychain item.
+It requires a properly signed build with data-protection Keychain entitlements;
+ad-hoc builds show it as unavailable. It never falls back to unprotected storage.
+
 ## Security
 
-Keys and the CLI session stay in process memory; the session can decrypt the
-entire vault. Locking or quitting stops the helper. Every launch requires a fresh
-unlock. VaultSSH locks on sleep, display sleep, user switching, observed screen
-lock, or 15 minutes without input. Waking never restores access.
+Private keys live in helper memory; the CLI session can decrypt the entire vault.
+Locking terminates the key-bearing helper and starts a fresh, keyless listener.
+PIN retains an encrypted session in app memory. Opting into system quick unlock
+stores a protected session in Keychain. Every launch still starts locked; waking
+never restores access. Quitting stops the listener and clears PIN access.
 Temporary approvals identify local executable paths and keys, not remote hosts;
 known interpreters and unknown callers require approval for each signature.
 Passphrase-protected private keys are not supported. No independent security

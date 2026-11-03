@@ -125,4 +125,57 @@ final class AppModelTests: XCTestCase {
         XCTAssertFalse(preferences.bool(forKey: "sessionRestoreDisabled"))
         XCTAssertEqual(model.cliPath, "/fake/bw")
     }
+    func testCancelledSystemAuthenticationCannotRestoreSession() async {
+        let gate = Gate<SavedSession>()
+        var service = services()
+        service.loadQuickSession = { _ in await gate.wait() }
+        let (model, preferences) = makeModel(service)
+        preferences.set(true, forKey: "systemUnlockEnabled")
+        // A fresh model picks up the opt-in without touching the real Keychain.
+        let protected = AppModel(services: service, preferences: preferences, agent: AgentController(loadHistory: false))
+        await protected.refreshCLI()
+        let pending = Task { await protected.unlockWithSystem() }
+        await waitFor(gate)
+        protected.lock()
+        await gate.resume(SavedSession(session: "late", cliPath: "/fake/bw", email: nil, server: nil))
+        await pending.value
+        XCTAssertFalse(protected.hasSession)
+        XCTAssertEqual(protected.agent.status.state, "stopped")
+        XCTAssertFalse(model.pinEnabled)
+    }
+
+    func testIdlePreferenceDefaultsToOffAndRejectsUnsupportedValues() {
+        let (model, preferences) = makeModel(services())
+        XCTAssertEqual(model.idleLockMinutes, 0)
+        model.setIdleLockMinutes(30)
+        XCTAssertEqual(preferences.integer(forKey: "idleLockMinutes"), 30)
+        model.setIdleLockMinutes(-1)
+        XCTAssertEqual(model.idleLockMinutes, 30)
+    }
+
+    func testAutomaticLockDismissesManualUnlockPanel() {
+        let (model, _) = makeModel(services())
+        model.showsUnlockPanel = true
+        model.automaticLock()
+        XCTAssertFalse(model.showsUnlockPanel)
+        XCTAssertFalse(model.hasSession)
+    }
+
+    func testChangedAccountDisablesQuickUnlockAndExplainsWhy() async {
+        var deleted = false
+        var service = services()
+        service.loadQuickSession = { _ in SavedSession(session: "dummy", cliPath: "/fake/bw", email: "old@example.invalid", server: nil) }
+        service.deleteQuickSession = { deleted = true }
+        let (_, preferences) = makeModel(service)
+        preferences.set(true, forKey: "systemUnlockEnabled")
+        let model = AppModel(services: service, preferences: preferences, agent: AgentController(loadHistory: false))
+        await model.refreshCLI()
+        await model.unlockWithSystem()
+        XCTAssertTrue(deleted)
+        XCTAssertFalse(model.systemUnlockEnabled)
+        XCTAssertFalse(model.hasSession)
+        XCTAssertFalse(model.isUnlocking)
+        XCTAssertEqual(model.errorMessage, L10n.text("Your CLI account changed. Unlock with your vault password."))
+    }
+
 }

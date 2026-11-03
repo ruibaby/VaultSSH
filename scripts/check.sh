@@ -10,3 +10,4 @@ swift test
 (cd agent && go vet ./... && go test -race -buildvcs=false ./...)
 ./scripts/build.sh
 python3 scripts/test-agent.py dist/VaultSSH.app/Contents/MacOS/bwssh-agent
+python3 scripts/test-locked-agent.py dist/VaultSSH.app/Contents/MacOS/bwssh-agent

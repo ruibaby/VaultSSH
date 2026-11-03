@@ -118,6 +118,10 @@ func handleConn(conn net.Conn, a *Agent, events *EventLogger, approver *Approver
 			}
 			return
 		}
+		if (msg[0] == agentcRequestIdentity || msg[0] == agentcSignRequest) && a.unlock != nil && !a.unlock.Wait(peer) {
+			_ = writeFailure(conn)
+			return
+		}
 		switch msg[0] {
 		case agentcRequestIdentity:
 			keys := a.Keys()

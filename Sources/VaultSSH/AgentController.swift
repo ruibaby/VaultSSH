@@ -8,6 +8,7 @@ final class AgentController: ObservableObject {
     @Published private(set) var events: [AgentEvent] = []
     @Published private(set) var helperRunning = false
     @Published private(set) var approvals: [ApprovalRequest] = []
+    @Published private(set) var unlockRequest: ApprovalRequest?
     @Published private(set) var notice: String?
 
     private var process: Process?
@@ -47,7 +48,7 @@ final class AgentController: ObservableObject {
     var pendingApproval: ApprovalRequest? { approvals.first }
     var isStarting: Bool { status.state == "starting" || status.state == "loading" }
 
-    func start(session: String, bwPath: String) async {
+    func start(session: String, bwPath: String, locked: Bool = false) async {
         stop()
         let run = generation
         await termination?.value
@@ -61,6 +62,7 @@ final class AgentController: ObservableObject {
         process.executableURL = helper
         process.arguments = ["--socket", AppPaths.socket.path, "--status", AppPaths.status.path,
                              "--events", AppPaths.events.path, "--bw", bwPath]
+        if locked { process.arguments! += ["--locked"] }
         if let mockKey = ProcessInfo.processInfo.environment["VAULTSSH_MOCK_KEY"] {
             process.arguments! += ["--mock-key", mockKey]
         }
@@ -111,12 +113,39 @@ final class AgentController: ObservableObject {
 
         let deadline = Date().addingTimeInterval(160)
         while generation == run && !Task.isCancelled && Date() < deadline {
-            if status.state == "ready" || status.state == "error" || !helperRunning { return }
+            if status.state == "ready" || status.state == "locked" || status.state == "error" || !helperRunning { return }
             try? await Task.sleep(nanoseconds: 100_000_000)
         }
         guard generation == run else { return }
         stop()
         if !Task.isCancelled { fail(L10n.text("Loading keys timed out. Check your CLI login and network, then retry.")) }
+    }
+
+    func resume(session: String, bwPath: String, requestID: String?) async {
+        if let requestID, unlockRequest?.id != requestID { return }
+        if !helperRunning || status.state != "locked" {
+            await start(session: session, bwPath: bwPath)
+            return
+        }
+        let run = generation
+        status = AgentStatus(state: "loading")
+        do { try send(ControlCommand(type: "unlock", session: session, id: requestID)) }
+        catch { stop(); fail(error.localizedDescription); return }
+        let deadline = Date().addingTimeInterval(160)
+        while generation == run && !Task.isCancelled && Date() < deadline {
+            if status.state != "loading" { return }
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+        guard generation == run else { return }
+        stop()
+        fail(L10n.text("Loading keys timed out. Check your CLI login and network, then retry."))
+    }
+
+    func cancelUnlockRequest() {
+        guard let request = unlockRequest else { return }
+        do { try send(ControlCommand(type: "cancelUnlock", id: request.id)) }
+        catch { stop() }
+        unlockRequest = nil
     }
 
     // Invalidate callbacks before any asynchronous teardown. A new start waits
@@ -139,6 +168,7 @@ final class AgentController: ObservableObject {
         logHandle = nil
         helperRunning = false
         approvals = []
+        unlockRequest = nil
         status = .stopped
         notice = nil
     }
@@ -188,6 +218,9 @@ final class AgentController: ObservableObject {
     private func receive(_ message: ControlEvent, run: UUID) {
         guard generation == run else { return }
         switch message.type {
+        case "unlock": unlockRequest = message.request
+        case "unlockDismiss":
+            if unlockRequest?.id == message.id { unlockRequest = nil }
         case "status":
             if let status = message.status { self.status = status }
         case "keys":

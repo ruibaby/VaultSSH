@@ -3,7 +3,6 @@ import CoreGraphics
 
 @MainActor
 final class SecurityMonitor {
-    static let idleLimit: TimeInterval = 15 * 60
     // macOS has no public NSWorkspace screen-lock notification. Treat this
     // distributed notification as an additional best-effort lock-only signal.
     static let screenLocked = Notification.Name("com.apple.screenIsLocked")
@@ -12,6 +11,7 @@ final class SecurityMonitor {
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private var timer: Timer?
     private let idleTime: () -> TimeInterval
+    private let idleLimit: () -> TimeInterval
     private let lock: () -> Void
 
     init(workspace: NotificationCenter = NSWorkspace.shared.notificationCenter,
@@ -19,11 +19,12 @@ final class SecurityMonitor {
          idleTime: @escaping () -> TimeInterval = {
              CGEventSource.secondsSinceLastEventType(.combinedSessionState,
                  eventType: CGEventType(rawValue: UInt32.max)!)
-         }, lock: @escaping () -> Void) {
+         }, idleLimit: @escaping () -> TimeInterval = { 0 }, lock: @escaping () -> Void) {
         self.workspace = workspace
         self.distributed = distributed
         self.idleTime = idleTime
         self.lock = lock
+        self.idleLimit = idleLimit
     }
 
     func start() {
@@ -46,7 +47,8 @@ final class SecurityMonitor {
     }
 
     func checkIdle() {
-        if idleTime() >= Self.idleLimit { lock() }
+        let limit = idleLimit()
+        if limit > 0 && idleTime() >= limit { lock() }
     }
 
     func stop() {

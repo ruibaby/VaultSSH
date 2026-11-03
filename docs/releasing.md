@@ -21,6 +21,11 @@ Intel builds are not covered by CI and should not be advertised as validated.
    Check English and Chinese UI, real CLI unlock,
    approval, deny, revocation, key order, sleep, screen lock, 15-minute idle lock
    and relaunch with a disposable test vault. Confirm waking stays locked.
+   Verify PIN setup, failed-attempt lockout, closed-window unlock prompts and
+   separate signature approval. For system quick unlock, test a signed and
+   provisioned build with data-protection Keychain entitlements: verify both
+   Touch ID and Mac-password fallback, denial/cancellation, and upgrade access.
+   Ad-hoc CI builds cannot validate this path and must show it as unavailable.
    Automated CLI smoke tests cover an unauthenticated account, not real vault
    decryption or every self-hosted server version.
 3. Review the diff and CI result. Commit the release preparation, create an

@@ -24,7 +24,8 @@ time or bug-bounty program.
   Node starts. A bundled adapter loads the pinned CLI in that same process;
   secrets are not passed in OS startup arguments/environment. CLI subprocess
   creation is blocked as a compatibility guard, not as a sandbox.
-- Sessions are held in memory only and can decrypt the **whole vault**. Private
+- CLI sessions can decrypt the **whole vault**. By default they remain in memory;
+  optional quick-unlock storage is described below. Private
   keys are loaded into helper memory. No plaintext private-key file is
   intentionally persisted; memory zeroization, swap and crash-dump exclusion
   are not guaranteed. The CLI manages its own encrypted vault cache on disk.
@@ -38,11 +39,17 @@ time or bug-bounty program.
   executable names, not attestation: renamed runtimes and replaced binaries
   remain limitations. Approvals do not restrict remote destinations; agent
   forwarding obscures the remote caller behind local SSH.
-- Locking invalidates pending work, revokes grants and stops the helper. Sessions
-  are not restored after launch. Legacy Keychain sessions are deleted on startup;
-  if deletion fails, restoration stays disabled and an error is shown.
+- Locking invalidates pending work, revokes grants and terminates the key-bearing
+  helper. A new keyless helper listens for SSH identity/sign requests and asks
+  the app to unlock over the inherited pipe. Concurrent clients share one prompt;
+  cancelling or exceeding 120 seconds denies the waiting requests. A ten-second
+  cooldown limits immediate repeat prompts. Socket replacement has a brief gap;
+  clients connecting during the transition may need to retry. Quitting stops it.
+- The app always launches locked. Legacy unprotected Keychain sessions are
+  deleted on startup; deletion failure never enables automatic restoration.
 - The app locks on system/display sleep, user switching, an observed screen-lock
-  notification, or 15 minutes without input (checked every five seconds). Wake
+  notification, or a user-selected idle timeout (checked every five seconds).
+  Idle locking is off by default; available timeouts are 5, 15, 30 and 60 minutes. Wake
   never unlocks. Screen-lock notification `com.apple.screenIsLocked` is an
   undocumented best-effort signal; public workspace notifications cover sleep
   and user switching, not every lock transition. Lock explicitly when needed.
@@ -52,6 +59,32 @@ time or bug-bounty program.
   An idle connection with no partial frame may remain open for SSH compatibility.
   Same-user clients can still occupy all slots and deny service until disconnected;
   this bound prevents unbounded descriptor/goroutine growth, not all local DoS.
+
+## Quick-unlock storage
+
+PIN is opt-in while the vault is unlocked. A 6–12 digit PIN derives an AES-256-GCM
+key using PBKDF2-HMAC-SHA256 (600,000 iterations) and a random 32-byte salt. Only
+the sealed session and salt are retained in app memory; the PIN, derived key and
+sealed session are not intentionally written to preferences or files. Five
+incorrect attempts discard the sealed session. Quitting, disabling PIN or a new
+master-password unlock clears PIN access. Memory zeroization is not guaranteed.
+The attempt counter is an **application policy, not a hardware-enforced limit**;
+a memory dump of the ciphertext permits offline PIN guessing. PIN does not
+protect against a debugger or compromised local account.
+
+System quick unlock is a separate opt-in. It stores the session in the macOS
+data-protection Keychain with `WhenUnlockedThisDeviceOnly` and `userPresence`.
+Every read uses a fresh authentication context (Touch ID or the Mac login
+password); locking/cancelling invalidates the context. Unsupported signing or
+Keychain access fails closed, with no legacy unprotected fallback. Ad-hoc builds
+cannot enable this feature. A trusted signature, matching app identity and
+Keychain entitlements/provisioning must be supplied for distribution.
+
+Saved sessions are bound to the resolved CLI path, account email and server;
+these are checked again before quick unlock. Changing accounts/CLI paths clears
+quick-unlock options. Vault passwords are never persisted. A stale session or
+failed vault load requires a fresh vault-password unlock; neither PIN nor system
+authentication bypasses signature approval.
 
 ## Dependency and release checks
 

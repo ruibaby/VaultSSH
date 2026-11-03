@@ -20,6 +20,7 @@ type ControlEvent struct {
 }
 
 type ControlCommand struct {
+	ID       string            `json:"id,omitempty"`
 	Type     string            `json:"type"`
 	Session  string            `json:"session,omitempty"`
 	Decision *approvalDecision `json:"decision,omitempty"`
@@ -103,6 +104,14 @@ func (c *ControlChannel) ReadCommands(a *Approver, keys *Agent) {
 			return
 		}
 		switch command.Type {
+		case "unlock":
+			if keys.unlock != nil {
+				keys.unlock.Unlock(command.Session, command.ID)
+			}
+		case "cancelUnlock":
+			if keys.unlock != nil {
+				keys.unlock.Cancel(command.ID)
+			}
 		case "keyOrder":
 			keys.SetKeyOrder(command.KeyOrder)
 			_ = c.Send(ControlEvent{Type: "keys", Keys: keys.KeyInfos()})

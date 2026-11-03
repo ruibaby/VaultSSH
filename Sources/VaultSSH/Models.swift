@@ -137,6 +137,7 @@ struct ControlEvent: Decodable, Sendable {
 struct ControlCommand: Encodable {
     let type: String
     var session: String? = nil
+    var id: String? = nil
     var decision: ApprovalDecision? = nil
     var keyOrder: [String]? = nil
 }

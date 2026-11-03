@@ -3,6 +3,13 @@ import Foundation
 // Small boundary for operations that touch credentials or external processes.
 // Tests can exercise the real model without reading the user's Keychain.
 struct AppServices {
+    var saveQuickSession: (SavedSession) async throws -> Void = { value in
+        try await Task.detached { try QuickUnlockKeychain.save(value) }.value
+    }
+    var loadQuickSession: (SystemUnlockContext) async throws -> SavedSession = { context in
+        try await Task.detached { try QuickUnlockKeychain.load(context) }.value
+    }
+    var deleteQuickSession: () throws -> Void = { try QuickUnlockKeychain.delete() }
     var deleteSession: () throws -> Void = { try Keychain.delete() }
     var resolveCLI: (String) async -> (path: String, version: String)? = { override in
         await Task.detached { BitwardenCLI.resolve(override: override) }.value

@@ -26,11 +26,19 @@ final class SecurityMonitorTests: XCTestCase {
         XCTAssertEqual(locks, 4)
     }
 
+    func testIdleLockIsDisabledByDefault() {
+        var locks = 0
+        let monitor = SecurityMonitor(workspace: NotificationCenter(), distributed: NotificationCenter(),
+                                      idleTime: { 100_000 }, lock: { locks += 1 })
+        monitor.checkIdle()
+        XCTAssertEqual(locks, 0)
+    }
+
     func testIdleThreshold() {
         var idle: TimeInterval = 899
         var locks = 0
         let monitor = SecurityMonitor(workspace: NotificationCenter(), distributed: NotificationCenter(),
-                                      idleTime: { idle }, lock: { locks += 1 })
+                                      idleTime: { idle }, idleLimit: { 900 }, lock: { locks += 1 })
         monitor.checkIdle()
         XCTAssertEqual(locks, 0)
         idle = 900
