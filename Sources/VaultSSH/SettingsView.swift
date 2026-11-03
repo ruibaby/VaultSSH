@@ -38,7 +38,7 @@ struct SettingsView: View {
                         Spacer()
                         Button(L10n.text("Install Compatible CLI…")) { showInstaller = true }.disabled(saving)
                     }
-                    Text(L10n.text("Changing the path requires unlocking again. A custom path never falls back to another CLI."))
+                    Text(L10n.text("Changing the CLI path locks the vault."))
                         .font(.caption).foregroundStyle(.secondary)
                 } header: { Label(L10n.text("Vault"), systemImage: "lock.shield") }
                 Section {
@@ -98,7 +98,7 @@ struct InstallerSheet: View {
                 }.padding(.top, 6)
             }
             ScrollView {
-                Text(model.installLog.isEmpty ? L10n.text("Ready to install. After installation, follow the login instructions to connect your vault.") : model.installLog)
+                Text(model.installLog.isEmpty ? L10n.text("Sign in to your vault after installation.") : model.installLog)
                     .font(.system(.caption, design: .monospaced)).textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(12)
             }
@@ -106,7 +106,6 @@ struct InstallerSheet: View {
             HStack {
                 if model.isInstalling {
                     ProgressView().controlSize(.small)
-                    Text(L10n.text("Installing. Output will appear when finished…")).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 Button(L10n.text("Close")) { dismiss() }.keyboardShortcut(.cancelAction)

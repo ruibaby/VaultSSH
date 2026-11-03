@@ -31,15 +31,13 @@ struct AccessView: View {
                     Button(L10n.text("Retry Loading"), systemImage: "arrow.clockwise") { Task { await model.refreshKeys() } }
                         .primaryActionStyle().disabled(model.isBusy)
                     Button(L10n.text("Unlock Again")) { model.lock(); model.showsUnlockPanel = true }.buttonStyle(.borderless)
-                } else {
-                    Text(L10n.text("Private keys stay in agent memory. Each caller needs approval before its first signature."))
-                        .font(.callout).foregroundStyle(.secondary)
                 }
             } else {
-                stepTitle("3", L10n.text("Unlock your keys"))
                 UnlockControls()
-                Text(L10n.text("Enable PIN or system authentication in Settings for quick unlock. SSH requests can open a small unlock panel."))
-                    .font(.caption).foregroundStyle(.secondary)
+                if !model.pinEnabled && !model.systemUnlockEnabled {
+                    SettingsLink { Text(L10n.text("Quick Unlock Settings…")) }
+                        .buttonStyle(.borderless).font(.caption)
+                }
             }
         }
         .sheet(isPresented: $showInstaller) { InstallerSheet() }

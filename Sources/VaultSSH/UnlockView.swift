@@ -64,7 +64,7 @@ struct UnlockPanelView: View {
             if let request {
                 Text(request.callerDisplay).font(.title3.weight(.semibold))
                 if let path = request.executable { Text(path).font(.caption.monospaced()).textSelection(.enabled) }
-                Text(L10n.text("SSH is waiting. Unlocking does not approve a signature."))
+                Text(L10n.text("Signing requires separate approval."))
                     .font(.callout).foregroundStyle(.secondary)
                 TimelineView(.periodic(from: .now, by: 1)) { timeline in
                     Text(L10n.text("Request expires in %ld seconds", max(0, Int(ceil(request.expiration.timeIntervalSince(timeline.date))))))
@@ -76,7 +76,6 @@ struct UnlockPanelView: View {
             if let error = model.errorMessage { Text(error).font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
             Divider()
             HStack {
-                Text(L10n.text("Unlock without opening the main window.")).font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button(L10n.text("Cancel")) { model.cancelUnlock() }.keyboardShortcut(.cancelAction)
             }
@@ -104,9 +103,10 @@ struct QuickUnlockSettings: View {
             if !QuickUnlockKeychain.hasAccessEntitlement {
                 Text(L10n.text("System quick unlock is unavailable in this build. You can use PIN instead."))
                     .font(.caption).foregroundStyle(.secondary)
+            } else {
+                Text(L10n.text("Saves the session in Keychain, not your password. Authentication is required each time."))
+                    .font(.caption).foregroundStyle(.secondary)
             }
-            Text(L10n.text("Optional: save the vault session in Keychain. Each use requires system authentication; your vault password is never saved."))
-                .font(.caption).foregroundStyle(.secondary)
             if model.pinEnabled {
                 LabeledContent(L10n.text("PIN"), value: L10n.text("Enabled for this app session"))
                 Button(L10n.text("Disable PIN")) { model.disablePIN() }.disabled(model.isBusy)
@@ -119,13 +119,16 @@ struct QuickUnlockSettings: View {
                 }
                 .disabled(!model.hasSession || model.isBusy || pin.isEmpty || confirmation.isEmpty)
             }
-            Text(L10n.text("Unlock your vault first to enable quick unlock. PIN works until you quit or unlock with your vault password again. Five incorrect attempts disable it."))
+            if !model.hasSession && !model.pinEnabled {
+                Text(L10n.text("Unlock the vault to set a PIN.")).font(.caption).foregroundStyle(.secondary)
+            }
+            Text(L10n.text("Set a new PIN after quitting, unlocking with your vault password, or five incorrect attempts."))
                 .font(.caption).foregroundStyle(.secondary)
             Picker(L10n.text("Lock After Inactivity"), selection: Binding(get: { model.idleLockMinutes }, set: model.setIdleLockMinutes)) {
                 Text(L10n.text("Never")).tag(0)
                 ForEach([5, 15, 30, 60], id: \.self) { minutes in Text(L10n.text("%ld minutes", minutes)).tag(minutes) }
             }
-            Text(L10n.text("Sleep, screen lock and user switching still lock your keys. Waking does not unlock them."))
+            Text(L10n.text("Sleep, screen lock and user switching require unlocking again."))
                 .font(.caption).foregroundStyle(.secondary)
         } header: { Label(L10n.text("Quick Unlock & Locking"), systemImage: "lock.shield") }
         .onDisappear { pin = ""; confirmation = "" }

@@ -143,8 +143,8 @@ struct ApprovalView: View {
                 }
             }
             Text(request.cacheAllowed == true
-                 ? L10n.text("Temporary approval applies to the same caller, parent process, and key. Revoke it anytime in the main window.")
-                 : L10n.text("Temporary approval is unavailable for unknown processes and script interpreters."))
+                 ? L10n.text("Applies only to this caller, parent process and key.")
+                 : L10n.text("Unknown processes and script interpreters require one-time approval."))
                 .font(.caption).foregroundStyle(.secondary)
             TimelineView(.periodic(from: .now, by: 1)) { timeline in
                 let remaining = max(0, Int(ceil(request.expiration.timeIntervalSince(timeline.date))))

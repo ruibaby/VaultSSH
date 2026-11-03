@@ -18,7 +18,6 @@ struct ContentView: View {
             }
         }
         .navigationTitle("VaultSSH")
-        .navigationSubtitle(L10n.text("Your keys. Your approval."))
         .navigationSplitViewStyle(.balanced)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
@@ -38,10 +37,9 @@ struct ContentView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             HStack(spacing: 8) {
-                Image(systemName: model.agent.status.state == "ready" ? "checkmark.shield" : "lock.shield")
-                    .foregroundStyle(.secondary)
-                Text(model.agent.notice ?? (model.agent.status.state == "ready" ? L10n.text("You'll be asked before signing") : L10n.text("Unlock to use your SSH keys")))
-                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                if let notice = model.agent.notice {
+                    Text(notice).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
                 Spacer()
                 Button(L10n.text("Connect SSH"), systemImage: "terminal") { showConnection = true }
                     .buttonStyle(.borderless)
@@ -67,11 +65,7 @@ struct SidebarView: View {
                             .font(.system(size: 23, weight: .medium)).foregroundStyle(ready ? .green : .secondary)
                             .frame(width: 44, height: 44)
                             .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(model.stateTitle).font(.title3.weight(.semibold))
-                            Text(ready ? L10n.text("%ld keys available", model.agent.keys.count) : L10n.text("Private keys are available only while unlocked"))
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
+                        Text(model.stateTitle).font(.title3.weight(.semibold))
                         Spacer(minLength: 0)
                         if model.isBusy { ProgressView().controlSize(.small) }
                     }
@@ -83,7 +77,7 @@ struct SidebarView: View {
                         Text(error).font(.callout).foregroundStyle(.red).textSelection(.enabled)
                     }
                 }
-                AccessView()
+                if !ready || model.isMockMode { AccessView() }
                 if let warnings = model.agent.status.warnings, !warnings.isEmpty {
                     DisclosureGroup {
                         ForEach(warnings, id: \.self) { warning in
@@ -100,14 +94,6 @@ struct SidebarView: View {
                         Text(L10n.text("Keys")).font(.headline)
                         Spacer()
                         Text("\(model.agent.keys.count)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                    }
-                    if model.agent.keys.isEmpty {
-                        Text(model.isBusy ? L10n.text("Reading your vault…") : L10n.text("Your keys will appear here after unlocking."))
-                            .font(.callout).foregroundStyle(.secondary)
-                    }
-                    if model.agent.keys.count > 1 {
-                        Text(L10n.text("Keys are offered in this order. Use a key's menu to reorder."))
-                            .font(.caption).foregroundStyle(.secondary)
                     }
                     ForEach(Array(model.agent.keys.enumerated()), id: \.element.id) { index, key in
                         HStack(spacing: 8) {

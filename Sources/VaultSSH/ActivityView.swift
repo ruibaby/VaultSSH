@@ -38,10 +38,7 @@ struct ActivityView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L10n.text("Activity")).font(.title2.weight(.semibold))
-                    Text(L10n.text("Review key listings and signature requests")).font(.callout).foregroundStyle(.secondary)
-                }
+                Text(L10n.text("Activity")).font(.title2.weight(.semibold))
                 Spacer()
                 Text(L10n.text("%ld events", filtered.count)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                 Button { showDetails.toggle() } label: { Label(L10n.text("Activity Details"), systemImage: "rectangle.bottomthird.inset.filled") }
@@ -58,9 +55,11 @@ struct ActivityView: View {
             Divider()
             if filtered.isEmpty {
                 ContentUnavailableView {
-                    Label(search.isEmpty && filter == .all ? L10n.text("Waiting for your first connection") : L10n.text("No matching activity"), systemImage: "clock.arrow.circlepath")
+                    Label(search.isEmpty && filter == .all ? L10n.text("No activity yet") : L10n.text("No matching activity"), systemImage: "clock.arrow.circlepath")
                 } description: {
-                    Text(search.isEmpty && filter == .all ? L10n.text("Unlock and connect with SSH to see callers and signing results here.") : L10n.text("Try another filter or search term."))
+                    if !search.isEmpty || filter != .all {
+                        Text(L10n.text("Try another filter or search term."))
+                    }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
