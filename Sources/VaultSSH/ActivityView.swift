@@ -33,14 +33,15 @@ struct ActivityView: View {
             filter.matches($0) && (search.isEmpty || $0.diagnosticText.localizedCaseInsensitiveContains(search))
         }.reversed()
     }
-    private var selectedEvent: AgentEvent? { filtered.first { $0.id == selection } }
 
     var body: some View {
+        let events = filtered
+        let selectedEvent = events.first { $0.id == selection }
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
                 Text(L10n.text("Activity")).font(.title2.weight(.semibold))
                 Spacer()
-                Text(L10n.text("%ld events", filtered.count)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                Text(L10n.text("%ld events", events.count)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                 Button { showDetails.toggle() } label: { Label(L10n.text("Activity Details"), systemImage: "rectangle.bottomthird.inset.filled") }
                     .labelStyle(.iconOnly).buttonStyle(.borderless).disabled(selectedEvent == nil).help(L10n.text("Activity Details"))
             }
@@ -53,7 +54,7 @@ struct ActivityView: View {
             }
             .padding(.horizontal, 20).padding(.bottom, 14)
             Divider()
-            if filtered.isEmpty {
+            if events.isEmpty {
                 ContentUnavailableView {
                     Label(search.isEmpty && filter == .all ? L10n.text("No activity yet") : L10n.text("No matching activity"), systemImage: "clock.arrow.circlepath")
                 } description: {
@@ -63,32 +64,7 @@ struct ActivityView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                Table(filtered, selection: $selection) {
-                    TableColumn(L10n.text("Time")) { event in
-                        Text(event.timeDisplay).font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.secondary).help(event.time)
-                    }.width(min: 62, ideal: 68, max: 80)
-                    TableColumn(L10n.text("Action")) { event in
-                        Text(event.actionLabel).font(.callout)
-                    }.width(min: 65, ideal: 75, max: 90)
-                    TableColumn(L10n.text("Caller")) { event in
-                        HStack(spacing: 5) {
-                            Text(event.processDisplay).font(.callout.weight(.medium))
-                            if let parent = event.parentProcess, !parent.isEmpty {
-                                Text("← \(parent)").font(.caption).foregroundStyle(.secondary)
-                            }
-                        }.lineLimit(1)
-                    }.width(min: 100, ideal: 140)
-                    TableColumn(L10n.text("Keys")) { event in
-                        Text(event.keyName ?? "—").font(.callout).lineLimit(1).help(event.keyName ?? L10n.text("No associated key"))
-                    }.width(min: 80, ideal: 130)
-                    TableColumn(L10n.text("Result")) { event in
-                        Label(event.resultLabel, systemImage: event.isError ? "xmark.circle" : (event.result == "warning" ? "exclamationmark.circle" : "checkmark.circle"))
-                            .font(.caption).foregroundStyle(event.isError ? .red : (event.result == "warning" ? .orange : .secondary))
-                            .help(event.detail ?? event.resultLabel)
-                    }.width(min: 74, ideal: 80, max: 100)
-                }
-                .tableStyle(.inset(alternatesRowBackgrounds: false))
+                ActivityTable(events: events, selection: $selection)
             }
         }
         .onChange(of: selection) { _, value in showDetails = value != nil }
