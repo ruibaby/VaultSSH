@@ -184,3 +184,10 @@
 "save session" = "save session";
 "update session" = "update session";
 "Needs Review" = "Needs Review";
+
+"About" = "About";
+"Development build" = "Development build";
+"Project on GitHub" = "Project on GitHub";
+"Troubleshooting" = "Troubleshooting";
+"Report an Issue" = "Report an Issue";
+"Version %@ (build %@)" = "Version %@ (build %@)";

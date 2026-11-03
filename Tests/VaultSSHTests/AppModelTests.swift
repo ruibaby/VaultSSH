@@ -120,4 +120,15 @@ final class AppModelTests: XCTestCase {
     func testCustomCLIPathDoesNotFallBackToAnotherAccount() {
         XCTAssertEqual(BitwardenCLI.candidatePaths(override: "/missing/bw"), ["/missing/bw"])
     }
+
+    func testSavingUnchangedCLIPathDoesNotDeleteSession() async {
+        var deletions = 0
+        var service = services()
+        service.deleteSession = { deletions += 1 }
+        let (model, preferences) = makeModel(service)
+        await model.saveCLIPath("  \n")
+        XCTAssertEqual(deletions, 0)
+        XCTAssertFalse(preferences.bool(forKey: "sessionRestoreDisabled"))
+        XCTAssertEqual(model.cliPath, "/fake/bw")
+    }
 }

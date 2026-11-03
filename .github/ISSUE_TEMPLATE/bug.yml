@@ -1,0 +1,25 @@
+name: Bug report
+description: Report a reproducible problem with VaultSSH.
+body:
+  - type: markdown
+    attributes:
+      value: "For vulnerabilities, use SECURITY.md. Never include private keys, passwords, sessions or raw vault data. Redact identifying information from logs and screenshots."
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: VaultSSH version/build, macOS version, chip architecture, CLI version and installation source.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Include the expected behavior and what happened instead, using a disposable test key if needed.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Sanitized diagnostics
+      description: Optional error text or screenshots after removing identifying information.

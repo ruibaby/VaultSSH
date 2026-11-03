@@ -27,18 +27,23 @@ type EventLogger struct {
 	notify func(Event)
 	mu     sync.Mutex
 	f      *os.File
+	path   string
+	size   int64
 }
+
+const maxEventLogSize = 5 << 20
 
 func NewEventLogger(path string) *EventLogger {
 	_ = os.MkdirAll(filepath.Dir(path), 0700)
-	if st, err := os.Stat(path); err == nil && st.Size() > 5<<20 {
-		_ = os.Rename(path, path+".1")
-	}
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
 		return &EventLogger{}
 	}
-	return &EventLogger{f: f}
+	l := &EventLogger{f: f, path: path}
+	if st, err := f.Stat(); err == nil {
+		l.size = st.Size()
+	}
+	return l
 }
 
 func (l *EventLogger) Event(ev Event) {
@@ -51,20 +56,44 @@ func (l *EventLogger) Event(ev Event) {
 	if l.notify != nil {
 		l.notify(ev)
 	}
-	if l.f == nil {
-		return
-	}
 	b, err := json.Marshal(ev)
 	if err != nil {
 		return
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	_, _ = l.f.Write(append(b, '\n'))
+	if l.f == nil {
+		return
+	}
+	b = append(b, '\n')
+	// Keep at most two bounded files even when the helper runs for weeks.
+	// Oversized events still reach the UI, but are not persisted.
+	if len(b) > maxEventLogSize {
+		return
+	}
+	if l.size+int64(len(b)) > maxEventLogSize {
+		if err := os.Rename(l.path, l.path+".1"); err != nil {
+			return
+		}
+		_ = l.f.Close()
+		l.f, err = os.OpenFile(l.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+		l.size = 0
+		if err != nil {
+			return
+		}
+	}
+	n, _ := l.f.Write(b)
+	l.size += int64(n)
 }
 
 func (l *EventLogger) Close() {
-	if l != nil && l.f != nil {
+	if l == nil {
+		return
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.f != nil {
 		_ = l.f.Close()
+		l.f = nil
 	}
 }

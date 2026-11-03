@@ -137,6 +137,10 @@ final class AppModel: ObservableObject {
 
     func saveCLIPath(_ path: String) async {
         let value = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard value != bwPathOverride else {
+            await detectAndRetry()
+            return
+        }
         bwPathOverride = value
         preferences.set(value, forKey: "bwPathOverride")
         // Changing CLI can change accounts. Require a fresh unlock instead of

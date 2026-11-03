@@ -1,0 +1,15 @@
+name: Feature request
+description: Explain a user problem or missing workflow.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what gets in your way?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Suggested behavior
+      description: Describe the outcome and any alternatives you have considered.

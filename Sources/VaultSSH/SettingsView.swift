@@ -55,6 +55,15 @@ struct SettingsView: View {
                 Section {
                     ConnectionView()
                 } header: { Text(L10n.text("SSH Configuration")) }
+                Section {
+                    LabeledContent("VaultSSH", value: appVersion)
+                        .textSelection(.enabled)
+                    HStack(spacing: 16) {
+                        Link(L10n.text("Project on GitHub"), destination: URL(string: "https://github.com/ruibaby/VaultSSH")!)
+                        Link(L10n.text("Troubleshooting"), destination: URL(string: "https://github.com/ruibaby/VaultSSH/blob/main/docs/troubleshooting.md")!)
+                        Link(L10n.text("Report an Issue"), destination: URL(string: "https://github.com/ruibaby/VaultSSH/issues/new/choose")!)
+                    }
+                } header: { Text(L10n.text("About")) }
             }
             .formStyle(.grouped)
         }
@@ -63,6 +72,14 @@ struct SettingsView: View {
         .onChange(of: pathDraft) { _, _ in saved = false }
         .onChange(of: scenePhase) { _, phase in if phase == .active { model.refreshLaunchStatus() } }
         .sheet(isPresented: $showInstaller) { InstallerSheet() }
+    }
+
+    private var appVersion: String {
+        guard let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+              let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String else {
+            return L10n.text("Development build")
+        }
+        return L10n.text("Version %@ (build %@)", version, build)
     }
 }
 

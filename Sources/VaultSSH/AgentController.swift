@@ -216,7 +216,7 @@ final class AgentController: ObservableObject {
     }
 
     private func helperURL() -> URL? {
-        Bundle.main.url(forResource: "bwssh-agent", withExtension: nil)
+        Bundle.main.executableURL?.deletingLastPathComponent().appendingPathComponent("bwssh-agent")
     }
 
     private func openHelperLog() -> FileHandle {

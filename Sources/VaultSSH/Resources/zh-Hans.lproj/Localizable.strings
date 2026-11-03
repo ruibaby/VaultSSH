@@ -184,3 +184,10 @@
 "save session" = "保存会话";
 "update session" = "更新会话";
 "Needs Review" = "需留意";
+
+"About" = "关于";
+"Development build" = "开发构建";
+"Project on GitHub" = "GitHub 项目";
+"Troubleshooting" = "常见问题";
+"Report an Issue" = "反馈问题";
+"Version %@ (build %@)" = "版本 %@（构建 %@）";
