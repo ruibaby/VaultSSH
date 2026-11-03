@@ -5,6 +5,7 @@ cd "$ROOT"
 for script in scripts/*.sh; do bash -n "$script"; done
 UNFORMATTED="$(gofmt -l agent/*.go)"
 [[ -z "$UNFORMATTED" ]] || { printf 'Run gofmt on:\n%s\n' "$UNFORMATTED" >&2; exit 1; }
+node --test scripts/test-cli-bridge.cjs
 swift test
 (cd agent && go vet ./... && go test -race -buildvcs=false ./...)
 ./scripts/build.sh

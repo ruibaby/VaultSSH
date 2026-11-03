@@ -70,7 +70,6 @@
 "Installing @bitwarden/cli@%@ in\n%@\n\n" = "正在安装 @bitwarden/cli@%@ 到\n%@\n\n";
 "Installing. Output will appear when finished…" = "安装中，完成后显示输出…";
 "Installing…" = "正在安装…";
-"Invalid Keychain session data. Unlock again." = "Keychain 会话数据无效，请重新解锁";
 "Issues" = "异常";
 "Key order saved for future SSH connections" = "密钥顺序已保存，将用于后续 SSH 连接";
 "Keys" = "密钥";
@@ -85,7 +84,6 @@
 "Lock" = "锁定";
 "Lock the vault and stop all signing" = "锁定保险库并停止所有签名";
 "Locked" = "已锁定";
-"Manual locking disables session restore. Quitting the app stops the agent." = "手动锁定后不会自动恢复会话；退出 App 会停止 agent。";
 "Move Down" = "下移";
 "Move Up" = "上移";
 "Needs Attention" = "需要处理";
@@ -142,8 +140,6 @@
 "The approval channel is closed." = "授权通道已关闭";
 "The bundled bwssh-agent is missing. Rebuild the app." = "找不到内嵌的 bwssh-agent，请重新构建 App";
 "The operation completed with no additional details." = "操作已完成，无额外信息。";
-"The session is stored in macOS Keychain. Locking stops signing and deletes the saved session." = "会话保存在 macOS Keychain。锁定会停止签名并删除保存的会话。";
-"This CLI version is too old. Version %@ or later is required." = "CLI 版本过旧，需要 %@ 或更新版本。";
 "This version is pinned for compatibility with self-hosted vaults. Later CLI releases may have different server requirements." = "固定此版本以兼容现有自托管保险库；后续版本的服务器要求可能不同。";
 "Time" = "时间";
 "Time: %@\nAction: %@\nResult: %@\nProcess: %@ (PID %@)\nPath: %@\nParent: %@ (PID %@)\nKey: %@\nFingerprint: %@\nDetails: %@" = "时间：%@\n操作：%@\n结果：%@\n进程：%@（PID %@）\n路径：%@\n父进程：%@（PID %@）\n密钥：%@\n指纹：%@\n详情：%@";
@@ -179,10 +175,6 @@
 "\nInstallation failed (exit code %@).\n" = "\n安装失败（退出码 %@）。\n";
 "bw exited with code %@" = "bw 退出码 %@";
 "delete session" = "删除会话";
-"npm was not found. Install Node.js first, or run: brew install bitwarden-cli\n" = "未找到 npm。请先安装 Node.js，或执行：brew install bitwarden-cli\n";
-"read session" = "读取会话";
-"save session" = "保存会话";
-"update session" = "更新会话";
 "Needs Review" = "需留意";
 
 "About" = "关于";
@@ -191,3 +183,11 @@
 "Troubleshooting" = "常见问题";
 "Report an Issue" = "反馈问题";
 "Version %@ (build %@)" = "版本 %@（构建 %@）";
+"Install Node.js and the supported npm CLI to use secure vault access." = "请安装 Node.js 和受支持的 npm CLI，以安全访问保险库。";
+"The credential input is too large." = "凭据输入过长。";
+"Secure CLI access failed. Check your CLI installation, login, password and network." = "安全 CLI 访问失败，请检查 CLI 安装、登录状态、密码和网络。";
+"Temporary approval is unavailable for unknown processes and script interpreters." = "未知进程和脚本解释器无法使用临时授权。";
+"Secure access requires the npm CLI version %@." = "安全访问需要 npm CLI 版本 %@。";
+"npm was not found. Install Node.js and npm first.\n" = "未找到 npm，请先安装 Node.js 和 npm。\n";
+"The session stays in memory until you lock or quit. Unlock again after sleep, screen lock or 15 minutes of inactivity." = "会话仅保留在内存中，锁定或退出即清除。睡眠、锁屏或闲置 15 分钟后需重新解锁。";
+"Automatically locks on sleep, screen lock, user switching or 15 minutes of inactivity. Sessions are never restored at launch." = "睡眠、锁屏、切换用户或闲置 15 分钟后自动锁定。启动时不会恢复会话。";

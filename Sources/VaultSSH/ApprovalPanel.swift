@@ -129,7 +129,9 @@ struct ApprovalView: View {
                         .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Text(L10n.text("Temporary approval applies to the same caller, parent process, and key. Revoke it anytime in the main window."))
+            Text(request.cacheAllowed == true
+                 ? L10n.text("Temporary approval applies to the same caller, parent process, and key. Revoke it anytime in the main window.")
+                 : L10n.text("Temporary approval is unavailable for unknown processes and script interpreters."))
                 .font(.caption).foregroundStyle(.secondary)
             TimelineView(.periodic(from: .now, by: 1)) { timeline in
                 let remaining = max(0, Int(ceil(request.expiration.timeIntervalSince(timeline.date))))
@@ -145,10 +147,11 @@ struct ApprovalView: View {
                     HStack {
                         Button(L10n.text("Deny"), action: onDeny).keyboardShortcut(.cancelAction)
                         Spacer()
-                        Button(L10n.text("Allow Once"), action: onOnce)
                         Button(L10n.text("Allow for %@", String(graceLabel)), action: onAllow)
+                            .disabled(request.cacheAllowed != true)
+
+                        Button(L10n.text("Allow Once"), action: onOnce)
                             .primaryActionStyle()
-                            .disabled(request.executable?.isEmpty != false || request.parentExecutable?.isEmpty != false)
                     }
                     .disabled(remaining == 0)
                 }

@@ -33,9 +33,12 @@ struct VaultSSHApp: App {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var approvalPanel: ApprovalPanelController?
+    private var securityMonitor: SecurityMonitor?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         approvalPanel = ApprovalPanelController()
+        securityMonitor = SecurityMonitor { AppModel.shared.automaticLock() }
+        securityMonitor?.start()
         Task { @MainActor in
             await AppModel.shared.bootstrap()
         }
@@ -53,6 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        securityMonitor?.stop()
         AppModel.shared.shutdown()
     }
 

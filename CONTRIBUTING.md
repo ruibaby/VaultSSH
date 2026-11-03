@@ -7,12 +7,18 @@ for vulnerabilities instead of opening a public issue.
 ## Local setup
 
 Use macOS, Xcode 27+ with the macOS 27 SDK, Go as specified in `agent/go.mod`,
-Python 3, and the system OpenSSH tools. Select Xcode with `xcode-select` before
+Node.js 22/npm, Python 3, and the system OpenSSH tools. Select Xcode with `xcode-select` before
 building. CI currently uses Xcode 27.1 on an Apple Silicon runner.
 
 ```sh
 ./scripts/check.sh
 ```
+
+Run `./scripts/check-cli-runtime.sh` to install the locked npm runtime in a
+temporary directory and smoke-test it with an isolated, unauthenticated account.
+Run `./scripts/security-check.sh` for dependency advisories; known high-severity
+CLI findings currently block release (see `SECURITY.md`). To update the runtime
+lock, use npm to regenerate it; never hand-edit integrity hashes.
 
 This checks shell syntax and Go formatting, runs Swift tests, Go vet and race
 tests, builds and verifies the app, and exercises real OpenSSH signing with

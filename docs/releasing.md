@@ -16,8 +16,13 @@ Intel builds are not covered by CI and should not be advertised as validated.
 
 1. Update `VERSION`, move the relevant Unreleased entries to a dated
    `## [X.Y.Z] - YYYY-MM-DD` heading in `CHANGELOG.md`, and keep an Unreleased heading.
-2. Run `./scripts/check.sh`. Check English and Chinese UI, real CLI unlock,
-   approval, deny, revocation, key order, lock and relaunch with a test vault.
+2. Run `./scripts/check.sh`, `./scripts/check-cli-runtime.sh` and
+   `./scripts/security-check.sh`. Resolve security-gate failures before release.
+   Check English and Chinese UI, real CLI unlock,
+   approval, deny, revocation, key order, sleep, screen lock, 15-minute idle lock
+   and relaunch with a disposable test vault. Confirm waking stays locked.
+   Automated CLI smoke tests cover an unauthenticated account, not real vault
+   decryption or every self-hosted server version.
 3. Review the diff and CI result. Commit the release preparation, create an
    annotated `vX.Y.Z` tag at that commit, then push the commit and tag.
 4. From GitHub Actions, run **Release draft** on `main`, entering that exact tag.
@@ -49,9 +54,9 @@ entitlements. See [Apple's notarization guide](https://developer.apple.com/docum
 
 Upload the resulting ZIP and `.sha256` to the draft, remove the ad-hoc assets and
 ad-hoc warning, and test a browser-downloaded copy on another Mac with Gatekeeper
-enabled. Verify its checksum, first launch, Keychain access and SSH approval.
-Signing changes can affect Keychain access: test upgrading from the previous
-release and document any required unlock or reauthorization.
+enabled. Verify its checksum, first launch, legacy Keychain cleanup and SSH
+approval. Test an upgrade from the previous release: it must start locked and
+require a fresh unlock.
 
 Only then publish the release. Retain the previous release for rollback. No
 in-app updater is implemented; users quit the app and replace it in Applications.

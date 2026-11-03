@@ -49,7 +49,7 @@ struct SettingsView: View {
                             .font(.callout).foregroundStyle(.orange)
                         Button(L10n.text("Open Login Items Settings")) { LaunchAgentManager.openSystemSettings() }
                     }
-                    Text(L10n.text("Manual locking disables session restore. Quitting the app stops the agent."))
+                    Text(L10n.text("Automatically locks on sleep, screen lock, user switching or 15 minutes of inactivity. Sessions are never restored at launch."))
                         .font(.caption).foregroundStyle(.secondary)
                 } header: { Label(L10n.text("Startup & Security"), systemImage: "power") }
                 Section {

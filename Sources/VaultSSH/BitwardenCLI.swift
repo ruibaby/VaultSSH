@@ -14,11 +14,23 @@ enum CLIError: LocalizedError {
 struct BitwardenCLI: Sendable {
     let path: String
 
-    static let minimumVersion = "2024.12.0"
+    // This version and its transitive dependencies are reviewed together.
+    static let compatibleVersion: String = {
+        let url = Bundle.module.url(forResource: "package", withExtension: "json", subdirectory: "CLI")!
+        let manifest = try! JSONSerialization.jsonObject(with: Data(contentsOf: url)) as! [String: Any]
+        return (manifest["dependencies"] as! [String: String])["@bitwarden/cli"]!
+    }()
+    static var bridgeURL: URL? { Bundle.module.url(forResource: "bridge", withExtension: "cjs", subdirectory: "CLI") }
+    static var nodePath: String? { shellWhich("node") }
 
-    // 2026.3.0+ requires the official server's accountCryptographicState,
-    // which Vaultwarden does not provide. Keep the last compatible release.
-    static let compatibleVersion = "2026.2.0"
+    static var cleanEnvironment: [String: String] {
+        let allowed = ["HOME", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE", "BITWARDENCLI_APPDATA_DIR",
+                       "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy",
+                       "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE"]
+        var result = ProcessInfo.processInfo.environment.filter { allowed.contains($0.key) }
+        result["PATH"] = loginPATH
+        return result
+    }
 
     static var loginPATH: String = {
         let process = Process()
@@ -83,38 +95,28 @@ struct BitwardenCLI: Sendable {
 
     static func version(at path: String) -> String? {
         try? BitwardenCLI(path: path)
-            .run(["--version"], timeout: 20)
+            .bridge("version", timeout: 20)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     static func isSupported(_ version: String) -> Bool {
-        compare(version, minimumVersion) >= 0
+        version == compatibleVersion
     }
 
-    static func compare(_ lhs: String, _ rhs: String) -> Int {
-        let a = lhs.split(separator: ".").map { Int($0.prefix { $0.isNumber }) ?? 0 }
-        let b = rhs.split(separator: ".").map { Int($0.prefix { $0.isNumber }) ?? 0 }
-        for index in 0..<max(a.count, b.count) {
-            let x = index < a.count ? a[index] : 0
-            let y = index < b.count ? b[index] : 0
-            if x != y { return x < y ? -1 : 1 }
-        }
-        return 0
-    }
-
-    func run(_ args: [String], extraEnv: [String: String] = [:], timeout: TimeInterval = 60, cancellation: CLIProcessCancellation? = nil) throws -> String {
+    func run(_ args: [String], extraEnv: [String: String] = [:], timeout: TimeInterval = 60, cancellation: CLIProcessCancellation? = nil, input: Data? = nil) throws -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = args
 
-        var environment = ProcessInfo.processInfo.environment
-        environment["PATH"] = Self.loginPATH
+        var environment = Self.cleanEnvironment
         for (key, value) in extraEnv { environment[key] = value }
         process.environment = environment
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
-        process.standardInput = FileHandle.nullDevice
+        let inputPipe = input == nil ? nil : Pipe()
+        if let inputPipe { process.standardInput = inputPipe }
+        else { process.standardInput = FileHandle.nullDevice }
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
@@ -130,6 +132,19 @@ struct BitwardenCLI: Sendable {
             }
         }
         DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: watchdog)
+        defer { watchdog.cancel() }
+
+        if let inputPipe, let input {
+            _ = fcntl(inputPipe.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
+            do {
+                try inputPipe.fileHandleForWriting.write(contentsOf: input)
+                try inputPipe.fileHandleForWriting.close()
+            } catch {
+                try? inputPipe.fileHandleForWriting.close()
+                if process.isRunning { process.terminate() }
+                throw error
+            }
+        }
 
         let errorOutput = CLIOutput()
         let readers = DispatchGroup()
@@ -155,7 +170,7 @@ struct BitwardenCLI: Sendable {
     }
 
     func status() throws -> BWStatus {
-        let output = try run(["--nointeraction", "status"], timeout: 20)
+        let output = try bridge("status", timeout: 20)
         guard let data = output.data(using: .utf8) else {
             throw CLIError.failed(L10n.text("Could not read bw status output."))
         }
@@ -163,12 +178,22 @@ struct BitwardenCLI: Sendable {
     }
 
     func unlock(password: String, cancellation: CLIProcessCancellation? = nil) throws -> String {
-        let output = try run(
-            ["--nointeraction", "unlock", "--raw", "--passwordenv", "BW_PASSWORD"],
-            extraEnv: ["BW_PASSWORD": password],
-            timeout: 60, cancellation: cancellation
-        )
+        let output = try bridge("unlock", credentials: ["password": password], cancellation: cancellation)
         return output.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func bridge(_ operation: String, credentials: [String: String] = [:], timeout: TimeInterval = 60,
+                cancellation: CLIProcessCancellation? = nil) throws -> String {
+        guard let node = Self.nodePath, let script = Self.bridgeURL else {
+            throw CLIError.failed(L10n.text("Install Node.js and the supported npm CLI to use secure vault access."))
+        }
+        let input = try JSONEncoder().encode(credentials)
+        guard input.count <= 65_536 else { throw CLIError.failed(L10n.text("The credential input is too large.")) }
+        do {
+            return try BitwardenCLI(path: node).run([script.path, path, operation], timeout: timeout,
+                                                    cancellation: cancellation, input: input)
+        } catch is CancellationError { throw CancellationError() }
+        catch { throw CLIError.failed(L10n.text("Secure CLI access failed. Check your CLI installation, login, password and network.")) }
     }
 }
 

@@ -1,13 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"os/exec"
 	"strings"
 	"time"
 )
@@ -25,16 +22,16 @@ type BWItem struct {
 	} `json:"sshKey"`
 }
 
-func (a *Agent) LoadFromBitwarden(ctx context.Context, bwPath, session string) error {
+func (a *Agent) LoadFromBitwarden(ctx context.Context, cli VaultCLI, session string) error {
 	ctx, cancel := context.WithTimeout(ctx, 150*time.Second)
 	defer cancel()
 
 	// Sync is best effort: an existing local cache still works offline.
 	syncCtx, cancelSync := context.WithTimeout(ctx, 20*time.Second)
-	_, syncErr := runBW(syncCtx, bwPath, session, "sync")
+	_, syncErr := runBW(syncCtx, cli, session, "sync")
 	cancelSync()
 
-	keys, problems, err := listSSHKeys(ctx, bwPath, session)
+	keys, problems, err := listSSHKeys(ctx, cli, session)
 	if err != nil {
 		return err
 	}
@@ -56,11 +53,11 @@ func (a *Agent) LoadFromBitwarden(ctx context.Context, bwPath, session string) e
 
 // listSSHKeys streams the vault list instead of buffering the entire JSON
 // document, so non-SSH secrets are not held in this process memory.
-func listSSHKeys(ctx context.Context, bwPath, session string) ([]*Key, []string, error) {
-	cmd := exec.CommandContext(ctx, bwPath, "--nointeraction", "list", "items", "--raw")
-	cmd.Env = append(os.Environ(), "BW_SESSION="+session)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
+func listSSHKeys(ctx context.Context, cli VaultCLI, session string) ([]*Key, []string, error) {
+	cmd, err := cli.command(ctx, session, "list")
+	if err != nil {
+		return nil, nil, err
+	}
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -96,7 +93,7 @@ func listSSHKeys(ctx context.Context, bwPath, session string) ([]*Key, []string,
 		if item.Type != cipherTypeSSHKey {
 			continue
 		}
-		key, problem := keyFromItem(ctx, bwPath, session, item)
+		key, problem := keyFromItem(ctx, cli, session, item)
 		if problem != "" {
 			problems = append(problems, problem)
 			continue
@@ -110,20 +107,16 @@ func listSSHKeys(ctx context.Context, bwPath, session string) ([]*Key, []string,
 	}
 
 	if err := cmd.Wait(); err != nil {
-		message := strings.TrimSpace(stderr.String())
-		if message == "" {
-			message = err.Error()
-		}
-		return nil, nil, fmt.Errorf(localized("bw list failed: %s"), message)
+		return nil, nil, fmt.Errorf("%s", localized("Secure CLI command failed. Check your login, server and network."))
 	}
 	return keys, problems, nil
 }
 
-func keyFromItem(ctx context.Context, bwPath, session string, item BWItem) (*Key, string) {
+func keyFromItem(ctx context.Context, cli VaultCLI, session string, item BWItem) (*Key, string) {
 	sshKey := item.SSHKey
 	if sshKey == nil || strings.TrimSpace(sshKey.PrivateKey) == "" {
 		// Some CLI versions omit secret fields from list output.
-		detail, err := runBW(ctx, bwPath, session, "get", "item", item.ID, "--raw")
+		detail, err := runBW(ctx, cli, session, "get", item.ID)
 		if err != nil {
 			return nil, fmt.Sprintf("%s: %v", item.Name, err)
 		}
@@ -148,21 +141,4 @@ func keyFromItem(ctx context.Context, bwPath, session string, item BWItem) (*Key
 		PublicKey:   pub,
 		Fingerprint: sshFingerprint(pub),
 	}, ""
-}
-
-func runBW(ctx context.Context, bwPath, session string, args ...string) ([]byte, error) {
-	allArgs := append([]string{"--nointeraction"}, args...)
-	cmd := exec.CommandContext(ctx, bwPath, allArgs...)
-	cmd.Env = append(os.Environ(), "BW_SESSION="+session)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	out, err := cmd.Output()
-	if err != nil {
-		message := strings.TrimSpace(stderr.String())
-		if message == "" {
-			message = err.Error()
-		}
-		return nil, fmt.Errorf(localized("bw %s failed: %s"), args[0], message)
-	}
-	return out, nil
 }

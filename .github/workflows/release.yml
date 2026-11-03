@@ -27,6 +27,9 @@ jobs:
         with:
           ref: refs/tags/${{ inputs.tag }}
           persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: agent/go.mod
@@ -35,6 +38,10 @@ jobs:
         run: |
           test "$RELEASE_TAG" = "v$(cat VERSION)"
           python3 scripts/release-notes.py "$RELEASE_TAG" > release-notes.md
+      - name: Security release gate
+        run: ./scripts/security-check.sh
+      - name: Verify locked CLI runtime
+        run: ./scripts/check-cli-runtime.sh
       - name: Test and package
         run: |
           ./scripts/check.sh

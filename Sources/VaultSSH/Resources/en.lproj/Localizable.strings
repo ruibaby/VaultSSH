@@ -70,7 +70,6 @@
 "Installing @bitwarden/cli@%@ in\n%@\n\n" = "Installing @bitwarden/cli@%@ in\n%@\n\n";
 "Installing. Output will appear when finished…" = "Installing. Output will appear when finished…";
 "Installing…" = "Installing…";
-"Invalid Keychain session data. Unlock again." = "Invalid Keychain session data. Unlock again.";
 "Issues" = "Issues";
 "Key order saved for future SSH connections" = "Key order saved for future SSH connections";
 "Keys" = "Keys";
@@ -85,7 +84,6 @@
 "Lock" = "Lock";
 "Lock the vault and stop all signing" = "Lock the vault and stop all signing";
 "Locked" = "Locked";
-"Manual locking disables session restore. Quitting the app stops the agent." = "Manual locking disables session restore. Quitting the app stops the agent.";
 "Move Down" = "Move Down";
 "Move Up" = "Move Up";
 "Needs Attention" = "Needs Attention";
@@ -142,8 +140,6 @@
 "The approval channel is closed." = "The approval channel is closed.";
 "The bundled bwssh-agent is missing. Rebuild the app." = "The bundled bwssh-agent is missing. Rebuild the app.";
 "The operation completed with no additional details." = "The operation completed with no additional details.";
-"The session is stored in macOS Keychain. Locking stops signing and deletes the saved session." = "The session is stored in macOS Keychain. Locking stops signing and deletes the saved session.";
-"This CLI version is too old. Version %@ or later is required." = "This CLI version is too old. Version %@ or later is required.";
 "This version is pinned for compatibility with self-hosted vaults. Later CLI releases may have different server requirements." = "This version is pinned for compatibility with self-hosted vaults. Later CLI releases may have different server requirements.";
 "Time" = "Time";
 "Time: %@\nAction: %@\nResult: %@\nProcess: %@ (PID %@)\nPath: %@\nParent: %@ (PID %@)\nKey: %@\nFingerprint: %@\nDetails: %@" = "Time: %@\nAction: %@\nResult: %@\nProcess: %@ (PID %@)\nPath: %@\nParent: %@ (PID %@)\nKey: %@\nFingerprint: %@\nDetails: %@";
@@ -179,10 +175,6 @@
 "\nInstallation failed (exit code %@).\n" = "\nInstallation failed (exit code %@).\n";
 "bw exited with code %@" = "bw exited with code %@";
 "delete session" = "delete session";
-"npm was not found. Install Node.js first, or run: brew install bitwarden-cli\n" = "npm was not found. Install Node.js first, or run: brew install bitwarden-cli\n";
-"read session" = "read session";
-"save session" = "save session";
-"update session" = "update session";
 "Needs Review" = "Needs Review";
 
 "About" = "About";
@@ -191,3 +183,11 @@
 "Troubleshooting" = "Troubleshooting";
 "Report an Issue" = "Report an Issue";
 "Version %@ (build %@)" = "Version %@ (build %@)";
+"Install Node.js and the supported npm CLI to use secure vault access." = "Install Node.js and the supported npm CLI to use secure vault access.";
+"The credential input is too large." = "The credential input is too large.";
+"Secure CLI access failed. Check your CLI installation, login, password and network." = "Secure CLI access failed. Check your CLI installation, login, password and network.";
+"Temporary approval is unavailable for unknown processes and script interpreters." = "Temporary approval is unavailable for unknown processes and script interpreters.";
+"Secure access requires the npm CLI version %@." = "Secure access requires the npm CLI version %@.";
+"npm was not found. Install Node.js and npm first.\n" = "npm was not found. Install Node.js and npm first.\n";
+"The session stays in memory until you lock or quit. Unlock again after sleep, screen lock or 15 minutes of inactivity." = "The session stays in memory until you lock or quit. Unlock again after sleep, screen lock or 15 minutes of inactivity.";
+"Automatically locks on sleep, screen lock, user switching or 15 minutes of inactivity. Sessions are never restored at launch." = "Automatically locks on sleep, screen lock, user switching or 15 minutes of inactivity. Sessions are never restored at launch.";

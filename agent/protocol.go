@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -72,7 +74,27 @@ func readMessage(r io.Reader) ([]byte, error) {
 	return msg, nil
 }
 
+// The idle interval between messages remains unlimited for persistent clients.
+// Once a frame starts, it must complete within the bounded assembly interval.
+func readConnMessage(conn net.Conn, timeout time.Duration) ([]byte, error) {
+	var first [1]byte
+	if _, err := io.ReadFull(conn, first[:]); err != nil {
+		return nil, err
+	}
+	if err := conn.SetReadDeadline(time.Now().Add(timeout)); err != nil {
+		return nil, err
+	}
+	defer conn.SetReadDeadline(time.Time{})
+	return readMessage(io.MultiReader(bytes.NewReader(first[:]), conn))
+}
+
 func writeMessage(w io.Writer, msg []byte) error {
+	if conn, ok := w.(net.Conn); ok {
+		if err := conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+			return err
+		}
+		defer conn.SetWriteDeadline(time.Time{})
+	}
 	var lenBuf [4]byte
 	binary.BigEndian.PutUint32(lenBuf[:], uint32(len(msg)))
 	if _, err := w.Write(lenBuf[:]); err != nil {
@@ -89,7 +111,7 @@ func handleConn(conn net.Conn, a *Agent, events *EventLogger, approver *Approver
 	defer conn.Close()
 	peer := resolvePeer(conn)
 	for {
-		msg, err := readMessage(conn)
+		msg, err := readConnMessage(conn, 5*time.Second)
 		if err != nil {
 			if !errors.Is(err, io.EOF) && !isClosed(err) {
 				events.Event(peerEvent("error", peer, "", "", "error", localized("Could not read request: ")+err.Error()))

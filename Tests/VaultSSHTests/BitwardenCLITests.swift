@@ -17,6 +17,15 @@ final class BitwardenCLITests: XCTestCase {
         XCTAssertLessThan(Date().timeIntervalSince(start), 2)
     }
 
+    func testCredentialPipeHandlesAnEarlyExit() async {
+        let completed = expectation(description: "early exit closes credential input")
+        Task.detached {
+            _ = try? BitwardenCLI(path: "/usr/bin/true").run([], timeout: 2, input: Data(repeating: 120, count: 65536))
+            completed.fulfill()
+        }
+        await fulfillment(of: [completed], timeout: 4)
+    }
+
     func testLargeStderrDoesNotBlockStdout() throws {
         let output = try BitwardenCLI(path: "/usr/bin/python3").run(
             ["-c", "import sys; sys.stderr.write('x' * 200000); print('ok')"], timeout: 5)

@@ -9,9 +9,11 @@ are for testing, not evidence of a notarized release.
 ## CLI missing or login fails
 
 Open Settings and check the detected path/version. **Install Compatible CLI**
-requires Node.js/npm and installs a separate CLI inside VaultSSH's Application
+requires Node.js 22/npm and installs the pinned npm CLI inside VaultSSH's Application
 Support directory. Use the exact **Copy Login Command** from the app: another
-`bw` on your PATH may use a different account or configuration.
+`bw` on your PATH may use a different account or configuration. Standalone CLI
+binaries and versions other than the pinned npm release are not supported by
+the secure bridge.
 
 For self-hosted vaults, configure the server on that same CLI before login.
 Complete two-factor login in Terminal. Changing the custom path locks the app;
@@ -48,9 +50,9 @@ not the remote host; see the [security policy](../SECURITY.md).
 ## Upgrade or uninstall
 
 Quit VaultSSH before replacing it in Applications. Reopen and verify a test SSH
-connection; unlock again if Keychain requests access after a signing change.
+connection. Every launch requires a fresh unlock; waking does not unlock.
 
-To uninstall, lock VaultSSH first to delete the saved session, disable launch at
+To uninstall, lock VaultSSH first to stop signing, disable launch at
 login in Settings, quit, and remove the app. You may then remove its Application
 Support folder (including its separately installed CLI and local logs). Remove
 VaultSSH-specific `IdentityAgent` / `SSH_AUTH_SOCK` settings from your shell and

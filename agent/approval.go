@@ -4,11 +4,14 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
 
 type ApprovalRequest struct {
+	CacheAllowed     bool   `json:"cacheAllowed"`
 	ID               string `json:"id"`
 	Created          string `json:"created"`
 	ExpiresAt        string `json:"expiresAt"`
@@ -121,7 +124,7 @@ func (a *Approver) Approve(peer PeerInfo, key *Key) (bool, string) {
 		a.mu.Unlock()
 		_ = a.emit(ControlEvent{Type: "dismiss", ID: id})
 	}()
-	req := ApprovalRequest{ID: id, Created: time.Now().Format(time.RFC3339Nano), ExpiresAt: expires.Format(time.RFC3339Nano), PID: peer.PID, Process: peer.Process, Executable: peer.Executable, ParentPID: peer.ParentPID, ParentProcess: peer.ParentProcess, ParentExecutable: peer.ParentExecutable, KeyName: key.Name, Fingerprint: key.Fingerprint}
+	req := ApprovalRequest{CacheAllowed: scope != "", ID: id, Created: time.Now().Format(time.RFC3339Nano), ExpiresAt: expires.Format(time.RFC3339Nano), PID: peer.PID, Process: peer.Process, Executable: peer.Executable, ParentPID: peer.ParentPID, ParentProcess: peer.ParentProcess, ParentExecutable: peer.ParentExecutable, KeyName: key.Name, Fingerprint: key.Fingerprint}
 	if err := a.emit(ControlEvent{Type: "approval", Request: &req}); err != nil {
 		return false, "send_failed"
 	}
@@ -153,7 +156,7 @@ func (a *Approver) Approve(peer PeerInfo, key *Key) (bool, string) {
 
 func approvalScope(peer PeerInfo, key *Key) string {
 	// Unknown identities must never share cached approval (including PID 0).
-	if peer.Executable == "" || peer.ParentExecutable == "" {
+	if !cacheableExecutable(peer.Executable) || !cacheableExecutable(peer.ParentExecutable) {
 		return ""
 	}
 	return peer.Executable + "\x00" + peer.ParentExecutable + "\x00" + key.Fingerprint
@@ -168,3 +171,22 @@ func randomID() (string, error) {
 }
 
 var errControlClosed = errors.New("control channel closed")
+
+// Paths identify runtimes, not the scripts they execute. Do not share a grant
+// between different scripts or callers with an interpreter as their parent.
+func cacheableExecutable(path string) bool {
+	if path == "" {
+		return false
+	}
+	name := strings.ToLower(filepath.Base(path))
+	for _, prefix := range []string{"python", "node", "perl", "ruby", "php", "lua", "tclsh", "wish"} {
+		if strings.HasPrefix(name, prefix) {
+			return false
+		}
+	}
+	switch name {
+	case "sh", "bash", "zsh", "dash", "fish", "ksh", "csh", "tcsh", "osascript", "env", "bun", "deno", "jsc", "java", "dotnet", "swift":
+		return false
+	}
+	return true
+}

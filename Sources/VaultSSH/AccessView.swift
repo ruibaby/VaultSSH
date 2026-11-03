@@ -52,7 +52,7 @@ struct AccessView: View {
                         Button(L10n.text("Check Login")) { Task { await model.detectAndRetry() } }.buttonStyle(.borderless)
                     }
                 }
-                Text(L10n.text("The session is stored in macOS Keychain. Locking stops signing and deletes the saved session."))
+                Text(L10n.text("The session stays in memory until you lock or quit. Unlock again after sleep, screen lock or 15 minutes of inactivity."))
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

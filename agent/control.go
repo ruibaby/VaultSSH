@@ -67,6 +67,11 @@ func (c *ControlChannel) Send(event ControlEvent) error {
 		return errControlClosed
 	default:
 	}
+	// Reserve capacity for approval/status messages. A client flooding activity
+	// must not shut down the control channel or displace authorization traffic.
+	if event.Type == "event" && len(c.output) >= 64 {
+		return nil
+	}
 	select {
 	case <-c.done:
 		return errControlClosed

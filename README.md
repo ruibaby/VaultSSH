@@ -21,7 +21,7 @@ can make an informed decision without losing focus on what I'm doing.
 
 ## Install
 
-Requires macOS 14+. Build with Xcode 27+ (macOS 27 SDK) and the Go version in
+Requires macOS 14+ and Node.js 22 with npm. Build with Xcode 27+ (macOS 27 SDK) and the Go version in
 [`agent/go.mod`](agent/go.mod):
 
 ```sh
@@ -45,9 +45,12 @@ Install [Node.js](https://nodejs.org/en/download) (which includes npm), then ope
 VaultSSH → **Settings → Install Compatible CLI… → Install**. This installs CLI
 2026.2.0 in VaultSSH's own tools directory without replacing a system installation.
 
-Alternatively, follow the [official CLI installation guide](https://bitwarden.com/help/cli/#download-and-install).
-VaultSSH requires CLI 2024.12.0 or later; self-hosted server compatibility varies.
-Use **Settings → Custom CLI Path** if you want to select an existing installation.
+The installer uses a checked-in dependency lockfile. Secure access currently
+supports only the **npm distribution of CLI 2026.2.0** with Node.js. A matching
+existing npm installation can be selected in **Settings → Custom CLI Path**.
+Standalone binaries and other versions are rejected; there is no fallback that
+passes credentials in process arguments or startup environment variables.
+Self-hosted server compatibility still needs testing with your server version.
 
 In Terminal, set `BW` to the executable shown under **Settings → Current CLI**.
 For the in-app installer, use:
@@ -122,12 +125,16 @@ Change language in **System Settings → General → Language & Region → Appli
 
 ## Security
 
-Keys live in helper memory. The CLI session is stored in Keychain and can decrypt
-the entire vault. Locking stops signing and deletes the saved session; quitting
-stops the agent but retains the session. Lock explicitly when leaving your Mac.
-Temporary approvals identify local executable paths and keys, not remote hosts.
+Keys and the CLI session stay in process memory; the session can decrypt the
+entire vault. Locking or quitting stops the helper. Every launch requires a fresh
+unlock. VaultSSH locks on sleep, display sleep, user switching, observed screen
+lock, or 15 minutes without input. Waking never restores access.
+Temporary approvals identify local executable paths and keys, not remote hosts;
+known interpreters and unknown callers require approval for each signature.
 Passphrase-protected private keys are not supported. No independent security
-audit has been performed. Read the [security policy and limitations](SECURITY.md).
+audit has been performed. The pinned CLI still has upstream dependency alerts,
+and the security release gate blocks high-severity findings. Read the
+[security policy and limitations](SECURITY.md).
 
 ## Contribute
 

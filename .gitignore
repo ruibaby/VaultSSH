@@ -3,3 +3,4 @@ dist/
 packaging/AppIcon.iconset/
 /agent/agent
 .DS_Store
+node_modules/

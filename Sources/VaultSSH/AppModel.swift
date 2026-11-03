@@ -44,7 +44,7 @@ final class AppModel: ObservableObject {
     }
 
     var pendingApproval: ApprovalRequest? { agent.pendingApproval }
-    var isBusy: Bool { isUnlocking || isRefreshing || agent.isStarting }
+    var isBusy: Bool { isUnlocking || isRefreshing || isInstalling || agent.isStarting }
     var isMockMode: Bool { ProcessInfo.processInfo.environment["VAULTSSH_MOCK_KEY"] != nil }
     var cliReady: Bool { isMockMode || (cliVersion.map(BitwardenCLI.isSupported) ?? false) }
     var loginCommand: String { "\(Self.shellQuote(cliPath ?? "bw")) login" }
@@ -77,7 +77,6 @@ final class AppModel: ObservableObject {
     func bootstrap() async {
         guard !bootstrapped else { return }
         bootstrapped = true
-        let token = operation
         if isMockMode {
             cliVersion = L10n.text("Demo mode")
             session = "mock"
@@ -85,16 +84,12 @@ final class AppModel: ObservableObject {
             await agent.start(session: "mock", bwPath: "bw")
             return
         }
+        lock() // Remove legacy persisted sessions; every launch requires a fresh unlock.
+        let bootstrapToken = operation
         refreshLaunchStatus()
         await refreshCLI()
-        guard token == operation else { return }
+        guard bootstrapToken == operation else { return }
         await refreshBWStatus()
-        guard token == operation, !preferences.bool(forKey: "sessionRestoreDisabled") else { return }
-        do {
-            session = try services.loadSession()
-            hasSession = session != nil
-            await retryStartIfPossible()
-        } catch { errorMessage = error.localizedDescription }
     }
 
     func refreshCLI() async {
@@ -109,7 +104,7 @@ final class AppModel: ObservableObject {
         cliVersion = resolved?.version
         bwStatus = nil
         guard let resolved else { cliProblem = L10n.text("No usable Bitwarden CLI found. Install it or check the custom path."); return }
-        cliProblem = BitwardenCLI.isSupported(resolved.version) ? nil : L10n.text("This CLI version is too old. Version %@ or later is required.", String(BitwardenCLI.minimumVersion))
+        cliProblem = BitwardenCLI.isSupported(resolved.version) ? nil : L10n.text("Secure access requires the npm CLI version %@.", String(BitwardenCLI.compatibleVersion))
     }
 
     func refreshBWStatus() async {
@@ -174,8 +169,6 @@ final class AppModel: ObservableObject {
             agent.stop()
             session = nil
             hasSession = false
-            try services.saveSession(value)
-            preferences.set(false, forKey: "sessionRestoreDisabled")
             session = value
             hasSession = true
             await refreshBWStatus()
@@ -249,13 +242,14 @@ final class AppModel: ObservableObject {
 
     func installCompatibleCLI() async {
         guard !isInstalling else { return }
+        lock()
         isInstalling = true
         installLog = L10n.text("Installing @bitwarden/cli@%@ in\n%@\n\n", String(BitwardenCLI.compatibleVersion), String(AppPaths.tools.path))
         defer { isInstalling = false }
 
         let npmPath = await Task.detached { BitwardenCLI.shellWhich("npm") }.value
         guard let npmPath else {
-            installLog += L10n.text("npm was not found. Install Node.js first, or run: brew install bitwarden-cli\n")
+            installLog += L10n.text("npm was not found. Install Node.js and npm first.\n")
             return
         }
 
@@ -264,21 +258,23 @@ final class AppModel: ObservableObject {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: npmPath)
             process.arguments = [
-                "install",
-                "--prefix", toolsPath,
+                "ci",
                 "--no-fund",
-                "--no-audit",
-                "--save-exact",
-                "@bitwarden/cli@\(BitwardenCLI.compatibleVersion)"
+                "--no-audit"
             ]
-            var environment = ProcessInfo.processInfo.environment
-            environment["PATH"] = BitwardenCLI.loginPATH
-            process.environment = environment
+            process.environment = BitwardenCLI.cleanEnvironment
 
             let pipe = Pipe()
             process.standardOutput = pipe
             process.standardError = pipe
             do {
+                let directory = URL(fileURLWithPath: toolsPath)
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                for name in ["package.json", "package-lock.json"] {
+                    let source = Bundle.module.resourceURL!.appendingPathComponent("CLI").appendingPathComponent(name)
+                    try Data(contentsOf: source).write(to: directory.appendingPathComponent(name), options: .atomic)
+                }
+                process.currentDirectoryURL = directory
                 try process.run()
             } catch {
                 return (-1, L10n.text("Could not start npm: %@\n", String(error.localizedDescription)))
@@ -298,10 +294,10 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func shutdown() {
-        operation = UUID()
-        unlockTask?.cancel()
-        unlockTask = nil
-        agent.stop()
+    func automaticLock() {
+        guard hasSession || isUnlocking || isRefreshing || agent.isStarting else { return }
+        lock()
     }
+
+    func shutdown() { lock() }
 }

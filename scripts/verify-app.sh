@@ -26,6 +26,9 @@ for filename in ("AppIcon.icns", "LICENSE.txt", "ThirdPartyNotices.txt"):
     assert (resources / filename).stat().st_size > 0, f"Missing resource: {filename}"
 for language in ("en", "zh-Hans"):
     assert list((resources / "VaultSSH_VaultSSH.bundle").rglob(f"{language}.lproj/Localizable.strings")), f"Missing {language} translations"
+for filename in ("bridge.cjs", "package.json", "package-lock.json"):
+    matches = list((resources / "VaultSSH_VaultSSH.bundle").rglob(f"CLI/{filename}"))
+    assert len(matches) == 1 and matches[0].stat().st_size > 0, f"Missing CLI resource: {filename}"
 print(f"Bundle verified: {info['CFBundleShortVersionString']} ({info['CFBundleVersion']}), {', '.join(sorted(architectures[0]))}")
 PY
 codesign --verify --strict --verbose=2 "$APP/Contents/MacOS/bwssh-agent"

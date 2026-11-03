@@ -64,8 +64,14 @@ final class AgentController: ObservableObject {
         if let mockKey = ProcessInfo.processInfo.environment["VAULTSSH_MOCK_KEY"] {
             process.arguments! += ["--mock-key", mockKey]
         }
-        var environment = ProcessInfo.processInfo.environment
-        environment["PATH"] = BitwardenCLI.loginPATH
+        if ProcessInfo.processInfo.environment["VAULTSSH_MOCK_KEY"] == nil {
+            guard let node = BitwardenCLI.nodePath, let bridge = BitwardenCLI.bridgeURL else {
+                fail(L10n.text("Install Node.js and the supported npm CLI to use secure vault access."))
+                return
+            }
+            process.arguments! += ["--node", node, "--bridge", bridge.path]
+        }
+        var environment = BitwardenCLI.cleanEnvironment
         environment["VAULTSSH_LANGUAGE"] = L10n.language
         environment.removeValue(forKey: "BW_SESSION")
         environment.removeValue(forKey: "BW_PASSWORD")

@@ -1,0 +1,8 @@
+{
+  "name": "vaultssh-cli-runtime",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": {
+    "@bitwarden/cli": "2026.2.0"
+  }
+}

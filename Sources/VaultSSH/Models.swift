@@ -97,6 +97,7 @@ struct BWStatus: Codable {
 }
 
 struct ApprovalRequest: Codable, Identifiable, Equatable, Sendable {
+    var cacheAllowed: Bool? = nil
     let id: String
     let created: String?
     let expiresAt: String?

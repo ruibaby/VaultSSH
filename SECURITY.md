@@ -20,29 +20,67 @@ time or bug-bounty program.
 
 - The app passes a Bitwarden CLI session to its child helper over inherited
   pipes. Approval decisions use the same private control channel, not files.
-- The session is stored in macOS Keychain and can decrypt the **whole vault**.
-  Private keys are loaded into helper memory. VaultSSH does not intentionally
-  persist plaintext private-key files, but does not guarantee memory zeroization.
-- The app, helper, selected CLI and local account are trusted. Approval prompts
-  do not protect against root, a compromised app/CLI, or arbitrary code running
-  with equivalent access to the user's session and Keychain.
+- Passwords and sessions enter the npm CLI over anonymous stdin pipes after
+  Node starts. A bundled adapter loads the pinned CLI in that same process;
+  secrets are not passed in OS startup arguments/environment. CLI subprocess
+  creation is blocked as a compatibility guard, not as a sandbox.
+- Sessions are held in memory only and can decrypt the **whole vault**. Private
+  keys are loaded into helper memory. No plaintext private-key file is
+  intentionally persisted; memory zeroization, swap and crash-dump exclusion
+  are not guaranteed. The CLI manages its own encrypted vault cache on disk.
+- The app, helper, Node runtime, selected npm CLI and local account are trusted.
+  The adapter checks package layout/version, not the integrity of an already
+  installed executable. Prompts do not protect against root, a compromised
+  dependency, or arbitrary code with equivalent access to these processes.
 - Temporary approvals match executable path, parent executable path and key,
-  for at most five minutes. They do not attest binary contents or restrict the
-  remote destination. Agent forwarding obscures the remote caller behind local SSH.
-- Locking cancels pending work, stops the helper and attempts to delete the saved
-  session. Restore remains disabled if Keychain deletion fails. Quitting stops
-  the helper but intentionally retains the session for the next launch.
-- There is currently no automatic lock on sleep or screen lock. Lock explicitly
-  when leaving the machine; remote-server vault locking does not immediately
-  remove keys already loaded in helper memory.
+  for at most five minutes. Unknown identities and recognized script runtimes
+  (including parent runtimes) cannot cache grants. Runtime recognition uses
+  executable names, not attestation: renamed runtimes and replaced binaries
+  remain limitations. Approvals do not restrict remote destinations; agent
+  forwarding obscures the remote caller behind local SSH.
+- Locking invalidates pending work, revokes grants and stops the helper. Sessions
+  are not restored after launch. Legacy Keychain sessions are deleted on startup;
+  if deletion fails, restoration stays disabled and an error is shown.
+- The app locks on system/display sleep, user switching, an observed screen-lock
+  notification, or 15 minutes without input (checked every five seconds). Wake
+  never unlocks. Screen-lock notification `com.apple.screenIsLocked` is an
+  undocumented best-effort signal; public workspace notifications cover sleep
+  and user switching, not every lock transition. Lock explicitly when needed.
+  Remote-server vault locking does not immediately remove already loaded keys.
+- The helper accepts at most 32 simultaneous SSH connections. Once a frame starts,
+  it must arrive within five seconds; writes also have five-second deadlines.
+  An idle connection with no partial frame may remain open for SSH compatibility.
+  Same-user clients can still occupy all slots and deny service until disconnected;
+  this bound prevents unbounded descriptor/goroutine growth, not all local DoS.
+
+## Dependency and release checks
+
+The npm CLI runtime is installed with `npm ci` from the bundled manifest and
+lockfile. The lockfile pins transitive versions and registry integrity hashes;
+Node and npm themselves are external trusted prerequisites. Installation may run
+upstream lifecycle scripts. Updating the CLI requires bridge compatibility tests
+and a real test-vault unlock/sync/sign check, not just changing a version number.
+
+Run `./scripts/security-check.sh` for Go reachable-vulnerability scanning and npm
+lockfile auditing. Scheduled CI reports new advisories, and the draft-release
+workflow blocks on Go findings or npm high/critical findings. There are no
+blanket suppressions or automated forced dependency upgrades.
+
+As of 2026-11-03, the pinned CLI dependency tree has high-severity advisories in
+`form-data`, `koa`, `multer`, `node-forge` and `tmp` (npm also reports the parent
+CLI as affected). Reachability through VaultSSH's selected commands has not been
+established. These alerts are **unresolved and block release**, not a claim that
+all of those vulnerabilities can be exploited through VaultSSH. Go scanning
+reported no reachable vulnerabilities in the helper at the time of this review.
 
 ## Local data and logs
 
 `~/Library/Application Support/VaultSSH` contains the socket, status and local
 activity logs. Activity includes process paths, key names and fingerprints;
 these can reveal sensitive context even though signatures and private-key
-material are not logged intentionally. CLI error output may contain account or
-server information. Review and redact logs before sharing them.
+material are not logged intentionally. Credential-bearing CLI diagnostics are
+replaced with fixed errors. Installer output and local activity can still reveal
+account paths or other context; review and redact logs before sharing them.
 
 The helper rotates activity logs at 5 MiB, retaining one previous file. The UI
 keeps at most 500 events. No telemetry or automatic crash upload is implemented.

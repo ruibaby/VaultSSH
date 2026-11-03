@@ -20,7 +20,9 @@ func main() {
 	socketPath := flag.String("socket", "", "unix socket path")
 	statusPath := flag.String("status", "", "status json path")
 	eventsPath := flag.String("events", "", "events jsonl path")
-	bwPath := flag.String("bw", "bw", "bitwarden cli path")
+	bwPath := flag.String("bw", "", "npm Bitwarden CLI entry path")
+	nodePath := flag.String("node", "", "Node.js executable path")
+	bridgePath := flag.String("bridge", "", "bundled CLI bridge path")
 
 	mockKey := flag.String("mock-key", "", "development: load a local private key instead of Bitwarden")
 	flag.Parse()
@@ -104,7 +106,7 @@ func main() {
 		if strings.TrimSpace(session) == "" {
 			loadErr = fmt.Errorf("%s", localized("No Bitwarden session. Unlock in the app."))
 		} else {
-			loadErr = a.LoadFromBitwarden(ctx, *bwPath, session)
+			loadErr = a.LoadFromBitwarden(ctx, VaultCLI{Node: *nodePath, Bridge: *bridgePath, Path: *bwPath}, session)
 		}
 	}
 	if loadErr != nil {
@@ -125,12 +127,9 @@ func main() {
 	}
 	events.Event(Event{Type: "ready", Result: "ok", Detail: fmt.Sprintf(localized("Keys: %d"), len(keys))})
 
-	for {
-		conn, err := ln.Accept()
-		if err != nil {
-			break
-		}
-		go handleConn(conn, a, events, approver)
-	}
+	serveErr := serveAgent(ctx, ln, a, events, approver)
 	cleanup("stopped")
+	if serveErr != nil {
+		status.Write(baseStatus("error", localized("The SSH socket stopped unexpectedly."), nil))
+	}
 }

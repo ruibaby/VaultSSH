@@ -4,6 +4,8 @@ import json
 import os
 from pathlib import Path
 import queue
+import resource
+import socket
 import subprocess
 import sys
 import tempfile
@@ -17,10 +19,14 @@ def main(helper):
         key = root / "key"
         subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(key)], check=True)
         messages = queue.Queue()
+        def limit_descriptors():
+            resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
+
         helper_process = subprocess.Popen(
             [helper, "--socket", str(root / "agent.sock"), "--status", str(root / "status.json"),
              "--events", str(root / "events.jsonl"), "--mock-key", str(key)],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            preexec_fn=limit_descriptors,
         )
         clients = []
 
@@ -63,6 +69,19 @@ def main(helper):
         try:
             send({"type": "session", "session": "mock"})
             wait_for(lambda m: m.get("status", {}).get("state") == "ready")
+            # Connection exhaustion must reject excess clients without killing the helper.
+            sockets = []
+            try:
+                for _ in range(96):
+                    connection = socket.socket(socket.AF_UNIX)
+                    connection.settimeout(2)
+                    connection.connect(str(root / "agent.sock"))
+                    sockets.append(connection)
+                assert helper_process.poll() is None, "Idle sockets killed the helper"
+            finally:
+                for connection in sockets:
+                    connection.close()
+            time.sleep(0.1)
             client = sign()
             request = wait_for(lambda m: m["type"] == "approval")["request"]
             # The old attack surface must have no effect on the new helper.
@@ -81,7 +100,11 @@ def main(helper):
             request = wait_for(lambda m: m["type"] == "approval")["request"]
             decision(request, True, 300)
             successful(client)
-            successful(sign())  # Same caller/key is cached; no UI response.
+            assert request["cacheAllowed"] is False, "Python parent must not share a cached grant"
+            client = sign()
+            request = wait_for(lambda m: m["type"] == "approval")["request"]
+            decision(request, True)
+            successful(client)
 
             send({"type": "revoke"})
             wait_for(lambda m: m["type"] == "revoked")
@@ -93,7 +116,7 @@ def main(helper):
             assert client.returncode != 0, "Disconnected app still allowed signing"
             assert not (root / "agent.sock").exists(), "Socket survived helper exit"
             assert not (root / "session").exists(), "Session was written to disk"
-            print("PASS: forged file rejected; deny, allow once, cached grant, revoke, OpenSSH verification and parent EOF")
+            print("PASS: forged file rejected; deny, allow once, interpreter grant isolation, connection cap, revoke, OpenSSH verification and parent EOF")
         finally:
             for client in clients:
                 if client.poll() is None:
