@@ -16,6 +16,7 @@ type KeyInfo struct {
 }
 
 type Status struct {
+	Phase     string    `json:"phase,omitempty"`
 	Warnings  []string  `json:"warnings,omitempty"`
 	State     string    `json:"state"`
 	PID       int       `json:"pid,omitempty"`

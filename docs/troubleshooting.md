@@ -81,3 +81,14 @@ Include the VaultSSH version/build, macOS version, chip architecture, CLI versio
 installation source and minimal steps. Redact usernames, server URLs, process
 paths and key names from diagnostics. Never attach a vault export, session,
 master password or private key. Report security issues privately.
+
+## Unlocking is slow or a changed key is missing
+
+Unlocking verifies the vault password, checks the CLI account, then reads keys
+from the local encrypted cache. The UI shows the current stage. Password key
+derivation and CLI startup still take time; PIN skips the master-password step.
+
+Use **Refresh Keys** after a remote key change. Normal unlock does not wait for a
+network sync when cached SSH keys exist. A cache without usable SSH keys syncs once automatically;
+manual refresh also syncs first. A failed sync can use cached keys with a warning,
+so remote deletions are not applied until a sync succeeds.

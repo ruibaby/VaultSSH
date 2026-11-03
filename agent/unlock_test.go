@@ -34,7 +34,7 @@ func TestLockedRequestsCoalesceAndRequireExplicitUnlock(t *testing.T) {
 	target := NewAgent()
 	loaded := loadedTestAgent(t)
 	var calls atomic.Int32
-	g := NewUnlockGate(ctx, target, func(e ControlEvent) error { events <- e; return nil }, func(context.Context, string) (*Agent, error) { calls.Add(1); return loaded, nil })
+	g := NewUnlockGate(ctx, target, func(e ControlEvent) error { events <- e; return nil }, func(context.Context, string, func(string)) (*Agent, error) { calls.Add(1); return loaded, nil })
 	results := make(chan bool, 16)
 	for i := 0; i < 16; i++ {
 		go func() { results <- g.Wait(testPeer()) }()
@@ -74,9 +74,10 @@ func TestUnlockTimeoutCancelAndLateLoadFailClosed(t *testing.T) {
 		finished := make(chan struct{})
 		loaded := loadedTestAgent(t)
 		target := NewAgent()
-		g := NewUnlockGate(ctx, target, func(e ControlEvent) error { events <- e; return nil }, func(context.Context, string) (*Agent, error) {
+		g := NewUnlockGate(ctx, target, func(e ControlEvent) error { events <- e; return nil }, func(_ context.Context, _ string, progress func(string)) (*Agent, error) {
 			close(started)
 			<-release
+			progress("loadingKeys") // Late progress must not revive a cancelled unlock.
 			defer close(finished)
 			return loaded, nil
 		})
@@ -109,6 +110,12 @@ func TestUnlockTimeoutCancelAndLateLoadFailClosed(t *testing.T) {
 		if ready || len(target.Keys()) != 0 {
 			t.Fatal("late load restored access")
 		}
+		for len(events) > 0 {
+			e := <-events
+			if e.Status != nil && e.Status.Phase == "loadingKeys" {
+				t.Fatal("late progress revived cancelled unlock")
+			}
+		}
 		if g.Wait(testPeer()) {
 			t.Fatal("cooldown allowed access")
 		}
@@ -123,7 +130,7 @@ func TestFailedQuickSessionCanRetryBeforeRequestExpires(t *testing.T) {
 	target := NewAgent()
 	loaded := loadedTestAgent(t)
 	var calls atomic.Int32
-	g := NewUnlockGate(ctx, target, func(e ControlEvent) error { events <- e; return nil }, func(context.Context, string) (*Agent, error) {
+	g := NewUnlockGate(ctx, target, func(e ControlEvent) error { events <- e; return nil }, func(context.Context, string, func(string)) (*Agent, error) {
 		if calls.Add(1) == 1 {
 			return nil, errors.New("expired session")
 		}

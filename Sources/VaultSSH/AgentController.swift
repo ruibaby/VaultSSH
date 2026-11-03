@@ -48,7 +48,7 @@ final class AgentController: ObservableObject {
     var pendingApproval: ApprovalRequest? { approvals.first }
     var isStarting: Bool { status.state == "starting" || status.state == "loading" }
 
-    func start(session: String, bwPath: String, locked: Bool = false) async {
+    func start(session: String, bwPath: String, locked: Bool = false, syncVault: Bool = false) async {
         stop()
         let run = generation
         await termination?.value
@@ -63,6 +63,7 @@ final class AgentController: ObservableObject {
         process.arguments = ["--socket", AppPaths.socket.path, "--status", AppPaths.status.path,
                              "--events", AppPaths.events.path, "--bw", bwPath]
         if locked { process.arguments! += ["--locked"] }
+        if syncVault { process.arguments! += ["--sync"] }
         if let mockKey = ProcessInfo.processInfo.environment["VAULTSSH_MOCK_KEY"] {
             process.arguments! += ["--mock-key", mockKey]
         }

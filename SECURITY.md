@@ -29,6 +29,10 @@ time or bug-bounty program.
   keys are loaded into helper memory. No plaintext private-key file is
   intentionally persisted; memory zeroization, swap and crash-dump exclusion
   are not guaranteed. The CLI manages its own encrypted vault cache on disk.
+- Unlocking uses the CLI's local encrypted cache. Remote key changes or deletions
+  take effect after a successful **Refresh Keys** sync, not on every unlock.
+  A cache without usable SSH keys triggers one sync attempt. If a manual sync fails, cached
+  keys remain usable and the app shows a warning; this is not a revocation check.
 - The app, helper, Node runtime, selected npm CLI and local account are trusted.
   The adapter checks package layout/version, not the integrity of an already
   installed executable. Prompts do not protect against root, a compromised

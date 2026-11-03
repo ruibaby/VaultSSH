@@ -38,6 +38,7 @@ final class AppModelTests: XCTestCase {
         await model.refreshCLI()
         let pending = Task { await model.unlock(password: "test") }
         await waitFor(gate)
+        XCTAssertEqual(model.unlockProgressTitle, L10n.text("Verifying vault password…"))
         model.automaticLock()
         await gate.resume("late-session")
         await pending.value
@@ -56,6 +57,7 @@ final class AppModelTests: XCTestCase {
         let pending = Task { await model.unlock(password: "test") }
         await waitFor(gate)
         XCTAssertTrue(model.hasSession)
+        XCTAssertEqual(model.unlockProgressTitle, L10n.text("Checking vault account…"))
         model.automaticLock()
         await gate.resume(BWStatus(status: "locked", userEmail: nil, serverUrl: nil, lastSync: nil))
         await pending.value

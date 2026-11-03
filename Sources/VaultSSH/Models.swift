@@ -16,6 +16,7 @@ struct AgentStatus: Codable, Equatable {
     var error: String?
     var updatedAt: String?
     var warnings: [String]?
+    var phase: String?
 
     static let stopped = AgentStatus(state: "stopped")
 }

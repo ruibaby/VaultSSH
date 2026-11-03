@@ -229,3 +229,8 @@
 "Your CLI account changed. Unlock with your vault password." = "CLI 账号已改变，请使用保险库主密码解锁。";
 "Unlock without opening the main window." = "无需打开主窗口。";
 "System quick unlock is unavailable in this build. You can use PIN instead." = "当前构建不支持系统快速解锁，可以使用 PIN。";
+"Verifying vault password…" = "正在验证保险库密码…";
+"Checking vault account…" = "正在检查保险库账号…";
+"Syncing vault…" = "正在同步保险库…";
+"Loading SSH keys…" = "正在加载 SSH 密钥…";
+"Authenticating…" = "正在认证…";

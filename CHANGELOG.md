@@ -32,6 +32,10 @@
 
 ### Fixed
 
+- Load cached SSH keys before attempting network sync during unlock; manual refresh
+  still syncs, and a cache without usable SSH keys triggers a sync-and-retry.
+- Show password verification, account checking, sync and key-loading progress.
+
 - Rotate activity logs while running instead of only on startup.
 - Keep the current session when saving an unchanged CLI path.
 - Verify bundled helper signatures, architectures, licenses and translations.

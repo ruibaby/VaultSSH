@@ -24,6 +24,7 @@ func main() {
 	nodePath := flag.String("node", "", "Node.js executable path")
 	bridgePath := flag.String("bridge", "", "bundled CLI bridge path")
 
+	syncVault := flag.Bool("sync", false, "sync the vault before loading keys")
 	locked := flag.Bool("locked", false, "start without private keys and wait for app unlock")
 	mockKey := flag.String("mock-key", "", "development: load a local private key instead of Bitwarden")
 	flag.Parse()
@@ -106,13 +107,13 @@ func main() {
 				return nil
 			}
 			return control.Send(event)
-		}, func(loadCtx context.Context, value string) (*Agent, error) {
+		}, func(loadCtx context.Context, value string, progress func(string)) (*Agent, error) {
 			loaded := NewAgent()
 			var err error
 			if *mockKey != "" {
 				err = loaded.LoadFile(*mockKey)
 			} else {
-				err = loaded.LoadFromBitwarden(loadCtx, VaultCLI{Node: *nodePath, Bridge: *bridgePath, Path: *bwPath}, value)
+				err = loaded.LoadFromBitwarden(loadCtx, VaultCLI{Node: *nodePath, Bridge: *bridgePath, Path: *bwPath}, value, false, progress)
 			}
 			return loaded, err
 		})
@@ -135,7 +136,11 @@ func main() {
 		if strings.TrimSpace(session) == "" {
 			loadErr = fmt.Errorf("%s", localized("No Bitwarden session. Unlock in the app."))
 		} else {
-			loadErr = a.LoadFromBitwarden(ctx, VaultCLI{Node: *nodePath, Bridge: *bridgePath, Path: *bwPath}, session)
+			loadErr = a.LoadFromBitwarden(ctx, VaultCLI{Node: *nodePath, Bridge: *bridgePath, Path: *bwPath}, session, *syncVault, func(phase string) {
+				s := baseStatus("loading", "", nil)
+				s.Phase = phase
+				status.Write(s)
+			})
 		}
 	}
 	if loadErr != nil {

@@ -32,6 +32,9 @@ struct UnlockControls: View {
                     Button(L10n.text("Cancel")) { secret = ""; model.cancelUnlock() }
                 }
             }
+            if model.isUnlocking {
+                Text(model.unlockProgressTitle).font(.caption).foregroundStyle(.secondary)
+            }
         }
         .onAppear { usePIN = model.pinEnabled }
         .onChange(of: usePIN) { _, _ in secret = "" }

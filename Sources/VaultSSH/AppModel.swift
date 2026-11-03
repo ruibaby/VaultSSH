@@ -10,6 +10,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var cliProblem: String?
     @Published private(set) var bwStatus: BWStatus?
     @Published private(set) var isUnlocking = false
+    @Published private(set) var unlockProgress = ""
     @Published private(set) var isRefreshing = false
     @Published private(set) var isDetecting = false
     @Published private(set) var hasSession = false
@@ -79,8 +80,15 @@ final class AppModel: ObservableObject {
         default: return "lock.fill"
         }
     }
+    var loadingProgress: String {
+        agent.status.phase == "syncing" ? L10n.text("Syncing vault…") : L10n.text("Loading SSH keys…")
+    }
+    var unlockProgressTitle: String {
+        agent.isStarting ? loadingProgress : unlockProgress
+    }
     var stateTitle: String {
-        if isUnlocking { return L10n.text("Unlocking") }
+        if isUnlocking { return unlockProgressTitle }
+        if isRefreshing { return loadingProgress }
         switch agent.status.state {
         case "ready": return L10n.text("Unlocked")
         case "starting": return L10n.text("Starting")
@@ -190,6 +198,7 @@ final class AppModel: ObservableObject {
         operation = UUID()
         let token = operation
         isUnlocking = true
+        unlockProgress = L10n.text("Verifying vault password…")
         activeUnlockRequest = agent.unlockRequest?.id
         errorMessage = nil
         defer { if operation == token { isUnlocking = false; unlockTask = nil; activeUnlockRequest = nil } }
@@ -205,6 +214,7 @@ final class AppModel: ObservableObject {
             hasSession = false
             session = value
             hasSession = true
+            unlockProgress = L10n.text("Checking vault account…")
             await refreshBWStatus()
             guard operation == token, !Task.isCancelled else { return }
             if systemUnlockEnabled {
@@ -217,6 +227,7 @@ final class AppModel: ObservableObject {
                 if !systemUnlockEnabled { try? services.deleteQuickSession() }
                 guard operation == token, !Task.isCancelled else { return }
             }
+            unlockProgress = L10n.text("Loading SSH keys…")
             await agent.resume(session: value, bwPath: cliPath, requestID: activeUnlockRequest)
             guard operation == token else { return }
             if agent.status.state != "ready" {
@@ -258,7 +269,7 @@ final class AppModel: ObservableObject {
         let token = operation
         isRefreshing = true
         defer { if operation == token { isRefreshing = false } }
-        await agent.start(session: session, bwPath: cliPath ?? "bw")
+        await agent.start(session: session, bwPath: cliPath ?? "bw", syncVault: true)
         guard operation == token else { return }
         if agent.status.state == "error" { errorMessage = agent.status.error }
     }
@@ -446,12 +457,14 @@ final class AppModel: ObservableObject {
         let token = operation
         activeUnlockRequest = agent.unlockRequest?.id
         isUnlocking = true
+        unlockProgress = L10n.text("Authenticating…")
         errorMessage = nil
         defer { if operation == token { isUnlocking = false; activeUnlockRequest = nil } }
         do {
             let saved = try await load()
             guard operation == token else { return }
             if !isMockMode {
+                unlockProgress = L10n.text("Checking vault account…")
                 let status = try await services.status(cliPath)
                 guard operation == token else { return }
                 bwStatus = status
@@ -463,6 +476,7 @@ final class AppModel: ObservableObject {
             }
             session = saved.session
             hasSession = true
+            unlockProgress = L10n.text("Loading SSH keys…")
             await agent.resume(session: saved.session, bwPath: cliPath, requestID: activeUnlockRequest)
             guard operation == token else { return }
             if agent.status.state == "ready" { showsUnlockPanel = false }

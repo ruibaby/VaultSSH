@@ -13,7 +13,7 @@ type UnlockGate struct {
 	ctx        context.Context
 	agent      *Agent
 	emit       func(ControlEvent) error
-	load       func(context.Context, string) (*Agent, error)
+	load       func(context.Context, string, func(string)) (*Agent, error)
 	timeout    time.Duration
 	closed     bool
 	ready      bool
@@ -32,7 +32,7 @@ type unlockBatch struct {
 }
 
 func NewUnlockGate(ctx context.Context, a *Agent, emit func(ControlEvent) error,
-	load func(context.Context, string) (*Agent, error)) *UnlockGate {
+	load func(context.Context, string, func(string)) (*Agent, error)) *UnlockGate {
 	return &UnlockGate{ctx: ctx, agent: a, emit: emit, load: load, timeout: 120 * time.Second}
 }
 
@@ -105,7 +105,13 @@ func (g *UnlockGate) Unlock(session, id string) {
 	g.mu.Unlock()
 	go func() {
 		defer cancel()
-		loaded, err := g.load(ctx, session)
+		loaded, err := g.load(ctx, session, func(phase string) {
+			g.mu.Lock()
+			defer g.mu.Unlock()
+			if !g.closed && generation == g.generation && ctx.Err() == nil && g.loading {
+				_ = g.emit(ControlEvent{Type: "status", Status: &Status{State: "loading", Phase: phase}})
+			}
+		})
 		g.mu.Lock()
 		defer g.mu.Unlock()
 		if g.closed || generation != g.generation || g.ctx.Err() != nil {

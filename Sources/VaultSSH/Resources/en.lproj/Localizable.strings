@@ -229,3 +229,8 @@
 "Your CLI account changed. Unlock with your vault password." = "Your CLI account changed. Unlock with your vault password.";
 "Unlock without opening the main window." = "Unlock without opening the main window.";
 "System quick unlock is unavailable in this build. You can use PIN instead." = "System quick unlock is unavailable in this build. You can use PIN instead.";
+"Verifying vault password…" = "Verifying vault password…";
+"Checking vault account…" = "Checking vault account…";
+"Syncing vault…" = "Syncing vault…";
+"Loading SSH keys…" = "Loading SSH keys…";
+"Authenticating…" = "Authenticating…";

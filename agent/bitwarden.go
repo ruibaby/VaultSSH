@@ -22,16 +22,33 @@ type BWItem struct {
 	} `json:"sshKey"`
 }
 
-func (a *Agent) LoadFromBitwarden(ctx context.Context, cli VaultCLI, session string) error {
+func (a *Agent) LoadFromBitwarden(ctx context.Context, cli VaultCLI, session string, syncVault bool, progress func(string)) error {
 	ctx, cancel := context.WithTimeout(ctx, 150*time.Second)
 	defer cancel()
 
-	// Sync is best effort: an existing local cache still works offline.
-	syncCtx, cancelSync := context.WithTimeout(ctx, 20*time.Second)
-	_, syncErr := runBW(syncCtx, cli, session, "sync")
-	cancelSync()
-
+	notify := func(phase string) {
+		if progress != nil {
+			progress(phase)
+		}
+	}
+	var syncErr error
+	sync := func() {
+		notify("syncing")
+		syncCtx, cancelSync := context.WithTimeout(ctx, 20*time.Second)
+		defer cancelSync()
+		_, syncErr = runBW(syncCtx, cli, session, "sync")
+	}
+	if syncVault {
+		sync()
+	}
+	notify("loadingKeys")
 	keys, problems, err := listSSHKeys(ctx, cli, session)
+	// Retry a cache without usable keys once. Existing cached keys never wait on the network.
+	if !syncVault && err == nil && len(keys) == 0 {
+		sync()
+		notify("loadingKeys")
+		keys, problems, err = listSSHKeys(ctx, cli, session)
+	}
 	if err != nil {
 		return err
 	}

@@ -125,6 +125,11 @@ Change language in **System Settings → General → Language & Region → Appli
 
 ## Quick unlock
 
+Unlocking loads keys from the CLI's local encrypted cache without waiting for a
+server sync. Use **Refresh Keys** after adding, changing or deleting keys in your
+vault. If the cache contains no usable SSH keys, VaultSSH syncs once and retries.
+
+
 After unlocking, open **Settings → Quick Unlock & Locking** to enable an optional
 6–12 digit PIN. Locked SSH requests open a small panel; the main window can stay
 closed. Unlocking resumes the request but still requires separate signature
