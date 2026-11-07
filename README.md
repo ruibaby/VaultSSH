@@ -19,6 +19,12 @@ I built VaultSSH to keep that vault-based setup with less disruption. A small,
 non-activating approval panel shows the requesting process and its parent, so I
 can make an informed decision without losing focus on what I'm doing.
 
+## Preview
+
+![](./images/preview-1.png)
+
+![](./images/preview-2.png)
+
 ## Install
 
 Requires macOS 14+ and Node.js 22 with npm. Build with Xcode 27+ (macOS 27 SDK) and the Go version in
