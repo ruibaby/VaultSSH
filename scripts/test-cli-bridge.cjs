@@ -6,13 +6,19 @@ const os = require('node:os');
 const path = require('node:path');
 const {spawn, spawnSync} = require('node:child_process');
 const bridge = path.resolve(__dirname, '../Sources/VaultSSH/Resources/CLI/bridge.cjs');
-const version = require('../Sources/VaultSSH/Resources/CLI/package.json').dependencies['@bitwarden/cli'];
+const runtime = require('../Sources/VaultSSH/Resources/CLI/package.json');
+const version = runtime.dependencies['@bitwarden/cli'];
 
 function fixture(t, source, supported = version) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vs-cli-'));
   t.after(() => fs.rmSync(root, {recursive: true, force: true}));
   fs.mkdirSync(path.join(root, 'build'));
   fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({name: '@bitwarden/cli', version: supported}));
+  for (const [name, version] of Object.entries(runtime.overrides)) {
+    const directory = path.join(root, 'node_modules', name);
+    fs.mkdirSync(directory, {recursive: true});
+    fs.writeFileSync(path.join(directory, 'package.json'), JSON.stringify({name, version}));
+  }
   const entry = path.join(root, 'build/bw.js');
   fs.writeFileSync(entry, source);
   return entry;
@@ -90,5 +96,19 @@ test('CLI child processes are blocked and raw failures are redacted', t => {
     assert.equal(result.stdout, '');
     assert.ok(!result.stderr.includes('dummy-sensitive-value'));
     assert.ok(!result.stderr.includes('leaked'));
+  }
+});
+
+test('matching CLI version with missing or unpatched dependencies is rejected', t => {
+  for (const name of Object.keys(runtime.overrides)) {
+    for (const missing of [false, true]) {
+      const entry = fixture(t, `process.stdout.write('executed');`);
+      const manifest = path.join(path.dirname(path.dirname(entry)), 'node_modules', name, 'package.json');
+      if (missing) fs.unlinkSync(manifest);
+      else fs.writeFileSync(manifest, JSON.stringify({name, version: '0.0.0'}));
+      const result = run(entry, 'status');
+      assert.equal(result.status, 1);
+      assert.equal(result.stdout, '');
+    }
   }
 });

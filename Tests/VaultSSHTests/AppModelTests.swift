@@ -17,8 +17,9 @@ final class AppModelTests: XCTestCase {
         return (AppModel(services: services, preferences: prefs, agent: AgentController(loadHistory: false)), prefs)
     }
     private func services() -> AppServices {
-        AppServices(savePIN: { _ in }, loadPIN: { nil }, deletePIN: {}, deleteSession: {},
-                    resolveCLI: { path in (path.isEmpty ? "/fake/bw" : path, "2026.2.0") },
+        AppServices(savePIN: { _ in }, loadPIN: { nil }, deletePIN: {},
+                    saveQuickSession: { _ in }, deleteQuickSession: {}, deleteSession: {},
+                    resolveCLI: { path in (path.isEmpty ? "/fake/bw" : path, BitwardenCLI.compatibleVersion) },
                     status: { _ in BWStatus(status: "locked", userEmail: nil, serverUrl: nil, lastSync: nil) },
                     unlock: { _, _ in "fake-session" })
     }
@@ -224,4 +225,82 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(model.errorMessage, L10n.text("Your CLI account changed. Unlock with your vault password."))
     }
 
+    func testMasterPasswordUnlockDoesNotCarrySystemOptInToAnotherAccount() async {
+        let account = ["/fake/bw", "original@example.invalid", "https://vault.example.invalid"]
+        let otherAccounts = [
+            ["/other/bw", account[1], account[2]],
+            [account[0], "other@example.invalid", account[2]],
+            [account[0], account[1], "https://other.example.invalid"]
+        ]
+        for previous in otherAccounts {
+            var saves = 0, deletions = 0
+            var service = services()
+            service.status = { _ in BWStatus(status: "locked", userEmail: account[1], serverUrl: account[2], lastSync: nil) }
+            service.saveQuickSession = { _ in saves += 1 }
+            service.deleteQuickSession = { deletions += 1 }
+            let (_, preferences) = makeModel(service)
+            preferences.set(true, forKey: "systemUnlockEnabled")
+            preferences.set(previous, forKey: "systemUnlockAccount")
+            let model = AppModel(services: service, preferences: preferences, agent: AgentController(loadHistory: false))
+            await model.refreshCLI()
+            await model.unlock(password: "test")
+            XCTAssertEqual(saves, 0, "Must not persist a different account's session")
+            XCTAssertEqual(deletions, 1)
+            XCTAssertFalse(model.systemUnlockEnabled)
+            XCTAssertFalse(preferences.bool(forKey: "systemUnlockEnabled"))
+            XCTAssertNil(preferences.object(forKey: "systemUnlockAccount"))
+        }
+    }
+
+    func testMasterPasswordUnlockKeepsMatchingSystemOptInAfterRelaunch() async {
+        let account = ["/fake/bw", "original@example.invalid", "https://vault.example.invalid"]
+        var saved: [SavedSession] = []
+        var deletions = 0
+        var service = services()
+        service.status = { _ in BWStatus(status: "locked", userEmail: account[1], serverUrl: account[2], lastSync: nil) }
+        service.saveQuickSession = { saved.append($0) }
+        service.deleteQuickSession = { deletions += 1 }
+        let (_, preferences) = makeModel(service)
+        preferences.set(true, forKey: "systemUnlockEnabled")
+        preferences.set(account, forKey: "systemUnlockAccount")
+        let model = AppModel(services: service, preferences: preferences, agent: AgentController(loadHistory: false))
+        await model.refreshCLI()
+        await model.unlock(password: "test")
+        XCTAssertEqual(saved, [SavedSession(session: "fake-session", cliPath: account[0], email: account[1], server: account[2])])
+        XCTAssertEqual(deletions, 0)
+        XCTAssertTrue(model.systemUnlockEnabled)
+        XCTAssertEqual(preferences.stringArray(forKey: "systemUnlockAccount"), account)
+    }
+
+    func testMasterPasswordUnlockClearsUnverifiableSystemOptIn() async {
+        for statusFails in [false, true] {
+            var saves = 0, deletions = 0
+            var service = services()
+            service.status = { _ in
+                if statusFails { throw CLIError.failed("status unavailable") }
+                return BWStatus(status: "locked", userEmail: "original@example.invalid", serverUrl: nil, lastSync: nil)
+            }
+            service.saveQuickSession = { _ in saves += 1 }
+            service.deleteQuickSession = { deletions += 1 }
+            let (_, preferences) = makeModel(service)
+            preferences.set(true, forKey: "systemUnlockEnabled")
+            if statusFails {
+                preferences.set(["/fake/bw", "original@example.invalid", ""], forKey: "systemUnlockAccount")
+            }
+            let model = AppModel(services: service, preferences: preferences, agent: AgentController(loadHistory: false))
+            await model.refreshCLI()
+            await model.unlock(password: "test")
+            XCTAssertEqual(saves, 0)
+            XCTAssertEqual(deletions, 1)
+            XCTAssertFalse(model.systemUnlockEnabled)
+            XCTAssertNil(preferences.object(forKey: "systemUnlockAccount"))
+        }
+    }
+
+    func testDisableSystemUnlockRemovesAccountBinding() {
+        let (model, preferences) = makeModel(services())
+        preferences.set(["/fake/bw", "original@example.invalid", ""], forKey: "systemUnlockAccount")
+        model.disableSystemUnlock()
+        XCTAssertNil(preferences.object(forKey: "systemUnlockAccount"))
+    }
 }

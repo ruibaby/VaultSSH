@@ -5,7 +5,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const childProcess = require('node:child_process');
-const supportedVersion = require('./package.json').dependencies['@bitwarden/cli'];
+const runtime = require('./package.json');
+const supportedVersion = runtime.dependencies['@bitwarden/cli'];
 const [cliPath, operation, itemID] = process.argv.slice(2);
 const operations = {
   version: ['--version'],
@@ -30,6 +31,12 @@ async function main() {
   const manifest = JSON.parse(fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'));
   if (manifest.name !== '@bitwarden/cli' || manifest.version !== supportedVersion ||
       entry !== path.join(packageRoot, 'build', 'bw.js')) fail();
+  // The upstream CLI pins older dependencies. A custom npm installation must
+  // include the same security updates as the managed runtime before use.
+  for (const [name, version] of Object.entries(runtime.overrides)) {
+    const dependency = require.resolve(`${name}/package.json`, {paths: [packageRoot]});
+    if (JSON.parse(fs.readFileSync(dependency, 'utf8')).version !== version) fail();
+  }
 
   let input = '';
   process.stdin.setEncoding('utf8');

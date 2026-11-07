@@ -10,7 +10,8 @@ Use [GitHub private vulnerability reporting](https://github.com/ruibaby/VaultSSH
 when it is available. If that form is unavailable, contact the maintainer through
 [their GitHub profile](https://github.com/ruibaby) to arrange a private channel,
 without sharing the exploit publicly. Private vulnerability reporting must be
-enabled before making this repository public.
+enabled as soon as the repository becomes public, before announcing it; GitHub
+only offers this feature for public repositories.
 
 Include affected versions, a minimal reproduction using disposable keys,
 expected and actual behavior, and the impact. There is no guaranteed response
@@ -34,7 +35,7 @@ time or bug-bounty program.
   A cache without usable SSH keys triggers one sync attempt. If a manual sync fails, cached
   keys remain usable and the app shows a warning; this is not a revocation check.
 - The app, helper, Node runtime, selected npm CLI and local account are trusted.
-  The adapter checks package layout/version, not the integrity of an already
+  The adapter checks package layout, CLI version and required dependency versions, not the integrity of an already
   installed executable. Prompts do not protect against root, a compromised
   dependency, or arbitrary code with equivalent access to these processes.
 - Temporary approvals match executable path, parent executable path and key,
@@ -104,6 +105,12 @@ quick-unlock options. Vault passwords are never persisted. A stale session or
 failed vault load requires a fresh vault-password unlock; neither PIN nor system
 authentication bypasses signature approval.
 
+The system quick-unlock opt-in also stores its CLI path, account email and server
+in app preferences, without a session. Master-password unlock checks this binding
+before refreshing the protected Keychain session. A different or unverifiable
+account clears the opt-in. Older opt-ins without this binding must be enabled
+again after a master-password unlock.
+
 ## Dependency and release checks
 
 The npm CLI runtime is installed with `npm ci` from the bundled manifest and
@@ -117,12 +124,18 @@ lockfile auditing. Scheduled CI reports new advisories, and the draft-release
 workflow blocks on Go findings or npm high/critical findings. There are no
 blanket suppressions or automated forced dependency upgrades.
 
-As of 2026-11-03, the pinned CLI dependency tree has high-severity advisories in
-`form-data`, `koa`, `multer`, `node-forge` and `tmp` (npm also reports the parent
-CLI as affected). Reachability through VaultSSH's selected commands has not been
-established. These alerts are **unresolved and block release**, not a claim that
-all of those vulnerabilities can be exploited through VaultSSH. Go scanning
-reported no reachable vulnerabilities in the helper at the time of this review.
+The managed runtime uses CLI 2026.10.1 with explicit security overrides for
+`inquirer` 8.2.7, `multer` 2.5.0 and `node-forge` 1.4.3 because the upstream CLI
+still pins older versions. The Inquirer update removes the legacy
+`external-editor`/`tmp` dependency chain. The bridge requires these same versions
+for custom npm installations. Review these overrides when updating the CLI;
+remove them when its own dependencies include the fixes.
+
+On 2026-11-07, the regenerated lockfile reported zero npm audit findings, and Go
+scanning reported no reachable vulnerabilities. These results are a dated
+snapshot, not a guarantee against later advisories. Compatibility checks cover
+the installed runtime's startup and unauthenticated commands; a disposable real
+vault is still required to validate unlock, sync and signing before release.
 
 ## Local data and logs
 

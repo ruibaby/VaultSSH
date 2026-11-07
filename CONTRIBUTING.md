@@ -16,8 +16,8 @@ building. CI currently uses Xcode 27.1 on an Apple Silicon runner.
 
 Run `./scripts/check-cli-runtime.sh` to install the locked npm runtime in a
 temporary directory and smoke-test it with an isolated, unauthenticated account.
-Run `./scripts/security-check.sh` for dependency advisories; known high-severity
-CLI findings currently block release (see `SECURITY.md`). To update the runtime
+Run `./scripts/security-check.sh` for dependency advisories; high-severity
+CLI findings block release (see `SECURITY.md`). To update the runtime
 lock, use npm to regenerate it; never hand-edit integrity hashes.
 
 This checks shell syntax and Go formatting, runs Swift tests, Go vet and race

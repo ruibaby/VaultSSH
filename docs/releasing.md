@@ -72,8 +72,12 @@ in-app updater is implemented; users quit the app and replace it in Applications
 ## Before making the repository public
 
 - Confirm source/history contain no vault data, credentials or private fixtures.
-- Enable GitHub private vulnerability reporting and review `SECURITY.md` links.
-- Set branch protection for `main`, requiring the **macOS checks** CI job.
+- Review `SECURITY.md` links. Immediately after changing visibility to public,
+  enable GitHub private vulnerability reporting before announcing the project;
+  GitHub does not offer this feature for private repositories.
+- Set branch protection for `main`, requiring the **macOS checks** CI job. If
+  the account plan does not support protection for private repositories, configure
+  it immediately after making the repository public and before accepting changes.
 - Check the MIT license, bundled third-party notices and contribution templates.
 - Set the repository description and topics; publish only sanitized screenshots.
 

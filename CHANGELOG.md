@@ -30,7 +30,11 @@
 - Make Allow Once the primary action; prohibit cached grants for unknown callers
   and recognized script interpreters, including their parent processes.
 - Lock npm runtime dependencies, add compatibility checks and a security release
-  gate. Known upstream CLI advisories remain unresolved and block release.
+  gate. Update CLI to 2026.10.1 with pinned dependency fixes for Inquirer, Multer
+  and node-forge; reject custom installations missing these updates.
+- Bind system quick-unlock opt-in to its CLI path, account and server across
+  restarts. Account changes or unverifiable bindings require a new opt-in before
+  another protected session is saved.
 
 ### Fixed
 

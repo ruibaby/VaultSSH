@@ -225,3 +225,4 @@
 "Saved PIN data is invalid. Disable PIN and set it again." = "保存的 PIN 数据无效，请停用 PIN 后重新设置。";
 "Could not access the saved PIN in Keychain (code %@)." = "无法访问钥匙串中的 PIN 数据（代码 %@）。";
 "Check your vault account before setting a PIN." = "请先确认保险库账号，再设置 PIN。";
+"Check your vault account before enabling system quick unlock." = "启用系统快速解锁前，请先确认保险库账户。";

@@ -225,3 +225,4 @@
 "Saved PIN data is invalid. Disable PIN and set it again." = "Saved PIN data is invalid. Disable PIN and set it again.";
 "Could not access the saved PIN in Keychain (code %@)." = "Could not access the saved PIN in Keychain (code %@).";
 "Check your vault account before setting a PIN." = "Check your vault account before setting a PIN.";
+"Check your vault account before enabling system quick unlock." = "Check your vault account before enabling system quick unlock.";

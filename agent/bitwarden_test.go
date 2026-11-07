@@ -48,11 +48,21 @@ func testVaultCLI(t *testing.T, dir, script string) VaultCLI {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var runtime struct{ Dependencies map[string]string }
+	var runtime struct{ Dependencies, Overrides map[string]string }
 	if err := json.Unmarshal(manifest, &runtime); err != nil {
 		t.Fatal(err)
 	}
 	os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{"name":"@bitwarden/cli","version":"`+runtime.Dependencies["@bitwarden/cli"]+`"}`), 0600)
+	for name, version := range runtime.Overrides {
+		dependency := filepath.Join(dir, "node_modules", name)
+		if err := os.MkdirAll(dependency, 0700); err != nil {
+			t.Fatal(err)
+		}
+		data, _ := json.Marshal(map[string]string{"name": name, "version": version})
+		if err := os.WriteFile(filepath.Join(dependency, "package.json"), data, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
 	entry := filepath.Join(build, "bw.js")
 	os.WriteFile(entry, []byte(script), 0600)
 	bridge, _ := filepath.Abs("../Sources/VaultSSH/Resources/CLI/bridge.cjs")

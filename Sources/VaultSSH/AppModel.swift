@@ -220,6 +220,10 @@ final class AppModel: ObservableObject {
             unlockProgress = L10n.text("Checking vault account…")
             await refreshBWStatus()
             guard operation == token, !Task.isCancelled else { return }
+            if systemUnlockEnabled && (systemUnlockAccount == nil ||
+                systemUnlockAccount != preferences.stringArray(forKey: "systemUnlockAccount")) {
+                disableSystemUnlock()
+            }
             if systemUnlockEnabled {
                 do { try await services.saveQuickSession(savedSession(value)) }
                 catch {
@@ -399,6 +403,16 @@ final class AppModel: ObservableObject {
                      email: bwStatus?.userEmail, server: bwStatus?.serverUrl)
     }
 
+    // Persist only the opt-in's account identity, never a session. This also
+    // prevents a master-password unlock after relaunch from replacing another
+    // account's protected session without a new opt-in.
+    private var systemUnlockAccount: [String]? {
+        guard let cliPath, let status = bwStatus,
+              status.status == "locked" || status.status == "unlocked",
+              let email = status.userEmail, !email.isEmpty else { return nil }
+        return [URL(fileURLWithPath: cliPath).resolvingSymlinksInPath().path, email, status.serverUrl ?? ""]
+    }
+
     func setPIN(_ pin: String, confirmation: String) async {
         guard hasSession, !isBusy, let session else { return }
         guard pin == confirmation else { errorMessage = L10n.text("The PINs do not match."); return }
@@ -468,12 +482,17 @@ final class AppModel: ObservableObject {
 
     func enableSystemUnlock() async {
         guard hasSession, !isBusy, let session else { return }
+        guard let account = systemUnlockAccount else {
+            errorMessage = L10n.text("Check your vault account before enabling system quick unlock.")
+            return
+        }
         let token = operation
         isConfiguringUnlock = true
         defer { isConfiguringUnlock = false }
         do {
             try await services.saveQuickSession(savedSession(session))
             guard operation == token, hasSession else { try? services.deleteQuickSession(); return }
+            preferences.set(account, forKey: "systemUnlockAccount")
             systemUnlockEnabled = true
             preferences.set(true, forKey: "systemUnlockEnabled")
             errorMessage = nil
@@ -485,6 +504,7 @@ final class AppModel: ObservableObject {
         systemContext?.cancel()
         systemUnlockEnabled = false
         preferences.set(false, forKey: "systemUnlockEnabled")
+        preferences.removeObject(forKey: "systemUnlockAccount")
         do { try services.deleteQuickSession() }
         catch { errorMessage = error.localizedDescription }
     }

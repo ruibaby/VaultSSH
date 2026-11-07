@@ -13,7 +13,10 @@ requires Node.js 22/npm and installs the pinned npm CLI inside VaultSSH's Applic
 Support directory. Use the exact **Copy Login Command** from the app: another
 `bw` on your PATH may use a different account or configuration. Standalone CLI
 binaries and versions other than the pinned npm release are not supported by
-the secure bridge.
+the secure bridge. Reinstall through **Install Compatible CLI** after upgrading
+VaultSSH. Custom npm installations must use VaultSSH's manifest and lockfile,
+including its dependency security updates; matching the CLI version alone is
+not sufficient.
 
 For self-hosted vaults, configure the server on that same CLI before login.
 Complete two-factor login in Terminal. Changing the custom path locks the app;
@@ -36,6 +39,11 @@ Touch ID/Mac-password quick unlock is unavailable in ad-hoc builds. It requires
 an app signed and provisioned for the data-protection Keychain. Error `-34018`
 means missing Keychain entitlements; do not work around it by storing the session
 without authentication. PIN and vault-password unlock remain available.
+
+System quick unlock is bound to the CLI path, account and server where it was
+enabled. Switching accounts or being unable to confirm that binding clears the
+opt-in before saving another session. Older opt-ins without a saved binding also
+require a fresh master-password unlock and re-enabling the setting.
 
 ## SSH offers the wrong key
 

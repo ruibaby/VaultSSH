@@ -43,12 +43,15 @@ is already signed in. VaultSSH currently unlocks using your master password.
 
 Install [Node.js](https://nodejs.org/en/download) (which includes npm), then open
 VaultSSH → **Settings → Install Compatible CLI… → Install**. This installs CLI
-2026.2.0 in VaultSSH's own tools directory without replacing a system installation.
+2026.10.1 in VaultSSH's own tools directory without replacing a system installation.
 
 The installer uses a checked-in dependency lockfile. Secure access currently
-supports only the **npm distribution of CLI 2026.2.0** with Node.js. A matching
-existing npm installation can be selected in **Settings → Custom CLI Path**.
-Standalone binaries and other versions are rejected; there is no fallback that
+supports only the **npm distribution of CLI 2026.10.1** with Node.js and the
+security dependency versions in the bundled manifest. Use the in-app installer
+to obtain this runtime, including when upgrading an older installation. A custom
+npm installation must use the same manifest and lockfile; an ordinary global CLI
+installation may not include the required dependency fixes.
+Standalone binaries, other versions and unpatched runtimes are rejected; there is no fallback that
 passes credentials in process arguments or startup environment variables.
 Self-hosted server compatibility still needs testing with your server version.
 
@@ -155,8 +158,8 @@ never restores access. Quitting stops the listener and clears PIN access.
 Temporary approvals identify local executable paths and keys, not remote hosts;
 known interpreters and unknown callers require approval for each signature.
 Passphrase-protected private keys are not supported. No independent security
-audit has been performed. The pinned CLI still has upstream dependency alerts,
-and the security release gate blocks high-severity findings. Read the
+audit has been performed. The managed CLI includes pinned dependency security
+updates, and the security release gate blocks high-severity findings. Read the
 [security policy and limitations](SECURITY.md).
 
 ## Contribute

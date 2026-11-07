@@ -3,6 +3,11 @@
   "private": true,
   "version": "1.0.0",
   "dependencies": {
-    "@bitwarden/cli": "2026.2.0"
+    "@bitwarden/cli": "2026.10.1"
+  },
+  "overrides": {
+    "inquirer": "8.2.7",
+    "multer": "2.5.0",
+    "node-forge": "1.4.3"
   }
 }
