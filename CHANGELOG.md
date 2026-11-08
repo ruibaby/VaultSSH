@@ -2,55 +2,25 @@
 
 ## [Unreleased]
 
-### Added
+## [0.1.0] - 2026-11-08
 
-- Optional PIN unlock (6–12 digits), with setup saved in the login Keychain.
-  Restarting or five failed attempts requires a fresh master-password unlock;
-  the same PIN remains usable without storing a vault session on disk.
-- A keyless locked listener and compact on-demand unlock panel, followed by
-  separate signature approval; cancellation and timeout reject pending requests.
-- Optional system-authenticated Keychain quick unlock for appropriately signed
-  builds; ad-hoc builds show it as unavailable.
-- Configurable idle locking, off by default; sleep and screen-lock handling remain.
+The first release of VaultSSH, a native macOS SSH agent for keys stored in Bitwarden.
 
-- MIT license, contribution guide, security policy and troubleshooting guide.
-- macOS CI for tests, race detection, OpenSSH integration and bundle validation.
-- Versioned DMG and ZIP packaging with checksums and an Applications shortcut.
-- Automatic tag-triggered releases, using ad-hoc signing without Apple credentials
-  by default; optional Developer ID signing and notarization with credential cleanup.
-- Developer ID signing and notarization support for local release builds.
-- Version/build information and project support links in Settings.
+Requires macOS 14+, Node.js 22 and npm. This release provides Apple Silicon builds; Intel and older macOS runtime compatibility have not been separately validated. System-authenticated quick unlock is unavailable in this build.
 
-### Security
+### Features
 
-- Pass CLI passwords/sessions through stdin to an in-process Node adapter; reject
-  unsupported CLI distributions and prevent credential-bearing subprocesses.
-- Keep sessions in memory by default, remove legacy unprotected Keychain sessions,
-  and clear loaded keys on sleep, observed screen lock, user switch or configured
-  idle lock. Restarts require a fresh unlock; protected Keychain storage is opt-in.
-- Bound SSH connections and partial-frame/write time, and survive descriptor exhaustion.
-- Make Allow Once the primary action; prohibit cached grants for unknown callers
-  and recognized script interpreters, including their parent processes.
-- Lock npm runtime dependencies, add compatibility checks and a security release
-  gate. Update CLI to 2026.10.1 with pinned dependency fixes for Inquirer, Multer
-  and node-forge; reject custom installations missing these updates.
-- Bind system quick-unlock opt-in to its CLI path, account and server across
-  restarts. Account changes or unverifiable bindings require a new opt-in before
-  another protected session is saved.
+- Load SSH keys from Bitwarden or a compatible self-hosted vault without keeping the Bitwarden desktop app running.
+- Approve signatures once or for five minutes, inspect the requesting process and its parent, and revoke approvals at any time.
+- Unlock on demand when an SSH request arrives, with optional PIN unlock. A master-password unlock is still required after restarting the app.
+- Customize key order, browse activity, and use the app in English or Simplified Chinese.
+- Install using a drag-and-drop DMG, or download a ZIP, with SHA-256 checksums for both.
 
-### Fixed
+### Improvements
 
-- Load cached SSH keys before attempting network sync during unlock; manual refresh
-  still syncs, and a cache without usable SSH keys triggers a sync-and-retry.
-- Show password verification, account checking, sync and key-loading progress.
+- Load cached SSH keys before attempting network sync during unlock to reduce waiting time.
+- Clear loaded keys on sleep, detected screen lock, user switching, or the configured idle timeout.
 
-- Rotate activity logs while running instead of only on startup.
-- Keep the current session when saving an unchanged CLI path.
-- Verify bundled helper signatures, architectures, licenses and translations.
+### Dependencies
 
-### Initial capabilities
-
-- Load SSH keys from Bitwarden CLI and compatible self-hosted vaults.
-- Approve or deny signatures, inspect caller processes and revoke temporary approvals.
-- Persist key order per Mac, inspect activity and configure SSH connections.
-- Native macOS UI with English and Simplified Chinese translations.
+- Use Bitwarden CLI 2026.10.1 with pinned security dependency fixes. Install the compatible CLI from the app's settings.
