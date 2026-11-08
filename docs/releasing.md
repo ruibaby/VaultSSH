@@ -12,6 +12,72 @@ minimum; CI on macOS 27 does not prove compatibility with every supported OS.
 Test the oldest supported OS before making a compatibility claim for a release.
 Intel builds are not covered by CI and should not be advertised as validated.
 
+## Release without Apple credentials (default)
+
+The release workflow defaults to **ad-hoc signing without notarization**. No
+Apple Developer membership, Apple secrets or personal GitHub token is required.
+Leave the repository variable `RELEASE_SIGNING` unset, or set it to `ad-hoc`.
+Packages include `-ad-hoc` in the filename and release notes clearly state that
+Apple has not notarized them. macOS may block their first launch; the
+[README installation instructions](../README.md#install) link to Apple's
+per-app approval procedure. System quick unlock remains unavailable in these builds.
+
+## Enable notarized releases later
+
+An active Apple Developer Program membership is required for new notarization
+submissions. To enable this mode, configure the credentials below, then set the
+repository variable `RELEASE_SIGNING` to `notarized`. Invalid mode values fail
+the workflow; notarized mode never falls back to ad-hoc packaging on failure.
+
+Create a **Developer ID Application** certificate and export it together with
+its private key from Keychain Access as a password-protected `.p12`. A `.cer`
+alone, Apple Development certificate or Developer ID Installer certificate is
+not sufficient.
+
+In App Store Connect, open **Users and Access → Integrations → App Store Connect
+API → Team Keys**, and create a team API key with **Developer** access or higher.
+The Account Holder may first need to request API access. Download its `.p8`
+private key and record the Key ID and Issuer ID. This workflow uses a team key;
+individual API keys use a different authentication flow.
+
+In the repository's **Settings → Secrets and variables → Actions**, add these
+repository secrets:
+
+| Secret | Value |
+| --- | --- |
+| `APPLE_CERTIFICATE_BASE64` | Base64-encoded `.p12`, including the private key |
+| `APPLE_CERTIFICATE_PASSWORD` | Password used when exporting the `.p12` |
+| `APPLE_API_KEY_P8` | Entire `.p8` file, including PEM headers and newlines |
+| `APPLE_API_KEY_ID` | App Store Connect team API Key ID |
+| `APPLE_API_ISSUER_ID` | App Store Connect team API Issuer ID |
+
+Copy the encoded certificate to the clipboard without printing it:
+
+```sh
+base64 -i VaultSSH-DeveloperID.p12 | pbcopy
+```
+
+Under **Variables**, add `APPLE_SIGNING_IDENTITY`, with the exact certificate
+name, for example `Developer ID Application: Your Name (TEAMID)`. Find it using:
+
+```sh
+security find-identity -v -p codesigning
+```
+
+No personal GitHub token or Apple ID password is needed. The workflow creates a
+temporary Keychain with a random password, imports the certificate and stores
+the notarization credentials there, then removes the Keychain and private files
+even if packaging fails. Signing credentials are only used by the release
+workflow, not pull-request checks.
+
+This does not configure a provisioning profile or data-protection Keychain
+entitlements for system quick unlock; that separate capability still needs the
+provisioned-build validation described below.
+
+References: [GitHub signing setup](https://docs.github.com/en/actions/how-tos/deploy/deploy-to-third-party-platforms/sign-xcode-applications),
+[Apple API keys](https://developer.apple.com/documentation/appstoreconnectapi/creating-api-keys-for-app-store-connect-api),
+and [Apple's notarization action credential guidance](https://github.com/Apple-Actions/notarize).
+
 ## Prepare a version
 
 1. Update `VERSION`, move the relevant Unreleased entries to a dated
@@ -33,15 +99,31 @@ Intel builds are not covered by CI and should not be advertised as validated.
    decryption or every self-hosted server version.
 3. Review the diff and CI result. Commit the release preparation, create an
    annotated `vX.Y.Z` tag at that commit, then push the commit and tag.
-4. From GitHub Actions, run **Release draft** on `main`, entering that exact tag.
-   The workflow checks the tag/version/changelog, reruns checks and packages the
-   app. It creates a **draft**, never an automatically published release.
+4. Pushing the tag automatically starts **Release**. It checks the
+   tag/version/changelog, reruns checks, builds packages in the selected mode,
+   verifies both packages, uploads assets to a draft, then publishes it.
+   **A successful run creates a public release automatically.** Review the notes
+   and complete manual distribution testing before pushing the tag.
 
-The workflow produces an **ad-hoc signed, unnotarized** ZIP for testing, with an
-explicit `-ad-hoc` filename and a SHA-256 sidecar. It needs no signing secrets.
-Do not describe this artifact as a normal Gatekeeper-approved installation.
-Review the draft and its notes before any publication. Reruns do not overwrite
-an existing release; remove an unwanted draft explicitly before retrying.
+For example, after committing and pushing the release preparation:
+
+```sh
+git tag -a v0.1.0 -m 'Release v0.1.0'
+git push origin v0.1.0
+```
+
+The tag must contain this workflow and the corresponding dated changelog entry;
+an Unreleased section alone does not pass the release gate. Outputs are
+`VaultSSH-X.Y.Z-macos-arm64-ad-hoc.dmg`, `.zip` and a `.sha256` sidecar for each
+by default. Notarized releases omit `-ad-hoc`. In notarized mode, missing signing
+credentials fail the job. Each notarization submission waits for up to 30 minutes;
+a timeout fails the workflow even though Apple may continue processing it.
+
+Retry a failed run, or manually run **Release** on `main` with an existing tag.
+The manual workflow checks out the tag, not the latest `main` source. Reruns do
+not overwrite an existing release. If a failed upload leaves a draft, explicitly
+remove that unwanted draft while keeping the tag before retrying. Use a new
+version for changes to an already published release.
 
 ## Developer ID distribution
 
@@ -57,17 +139,22 @@ NOTARY_PROFILE='vaultssh-notary' BUILD_NUMBER=1 ./scripts/package.sh
 
 The script signs the helper before the app, enables hardened runtime, submits
 with `notarytool`, requires Accepted status, staples the app, checks Gatekeeper,
-and then packages and verifies an extracted copy. There are no added exception
-entitlements. See [Apple's notarization guide](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution).
+and then packages a ZIP and compressed HFS+ DMG with an Applications shortcut.
+It separately signs, notarizes and staples the DMG, checks the mounted app,
+and generates checksums after stapling. Set `NOTARY_KEYCHAIN` when the profile
+is in a custom Keychain. There are no added exception entitlements.
+See [Apple's notarization guide](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution).
 
-Upload the resulting ZIP and `.sha256` to the draft, remove the ad-hoc assets and
-ad-hoc warning, and test a browser-downloaded copy on another Mac with Gatekeeper
-enabled. Verify its checksum, first launch, legacy Keychain cleanup and SSH
+Omit both `SIGNING_IDENTITY` and `NOTARY_PROFILE` for local ad-hoc packages;
+these carry an explicit `-ad-hoc` filename and are not notarized.
+
+Before tagging, test packages in the selected mode on another Mac with Gatekeeper
+enabled. For ad-hoc builds, verify the documented per-app approval flow; for
+notarized builds, verify normal first launch. Verify checksums, legacy Keychain cleanup and SSH
 approval. Test an upgrade from the previous release: it must start locked and
-require a fresh unlock.
-
-Only then publish the release. Retain the previous release for rollback. No
-in-app updater is implemented; users quit the app and replace it in Applications.
+require a fresh unlock. After publication, repeat the install smoke test using
+a browser-downloaded release asset. Retain the previous release for rollback.
+No in-app updater is implemented; users quit the app and replace it in Applications.
 
 ## Before making the repository public
 

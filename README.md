@@ -27,7 +27,18 @@ can make an informed decision without losing focus on what I'm doing.
 
 ## Install
 
-Requires macOS 14+ and Node.js 22 with npm. Build with Xcode 27+ (macOS 27 SDK) and the Go version in
+Requires macOS 14+ and Node.js 22 with npm. Download the DMG from
+[GitHub Releases](https://github.com/ruibaby/VaultSSH/releases) when available,
+open it and drag VaultSSH into Applications. Current release packages use
+ad-hoc signing and **are not notarized by Apple**, as indicated by `-ad-hoc`
+in their filenames. Node.js is still required separately.
+
+macOS may block the first launch because it cannot verify the developer. If you
+trust the downloaded release, try opening the app, then use **System Settings →
+Privacy & Security → Open Anyway** when available, following
+[Apple's instructions](https://support.apple.com/en-us/102445).
+
+To build locally, use Xcode 27+ (macOS 27 SDK) and the Go version in
 [`agent/go.mod`](agent/go.mod):
 
 ```sh
@@ -35,7 +46,7 @@ Requires macOS 14+ and Node.js 22 with npm. Build with Xcode 27+ (macOS 27 SDK) 
 ```
 
 Quit VaultSSH, copy `dist/VaultSSH.app` to Applications, then reopen it. Local
-builds and CI drafts are ad-hoc signed, **not notarized**. Automated builds cover
+builds without distribution credentials are ad-hoc signed, **not notarized**. Automated builds cover
 Apple Silicon; Intel and older macOS runtime compatibility need separate testing.
 Liquid Glass is available on macOS 26+; native filter tabs require macOS 27.
 

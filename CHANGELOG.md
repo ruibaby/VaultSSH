@@ -15,7 +15,9 @@
 
 - MIT license, contribution guide, security policy and troubleshooting guide.
 - macOS CI for tests, race detection, OpenSSH integration and bundle validation.
-- Versioned ZIP packaging, checksums and a manually triggered draft-release workflow.
+- Versioned DMG and ZIP packaging with checksums and an Applications shortcut.
+- Automatic tag-triggered releases, using ad-hoc signing without Apple credentials
+  by default; optional Developer ID signing and notarization with credential cleanup.
 - Developer ID signing and notarization support for local release builds.
 - Version/build information and project support links in Settings.
 
