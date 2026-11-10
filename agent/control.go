@@ -10,21 +10,23 @@ import (
 )
 
 type ControlEvent struct {
-	flushed chan struct{}
-	Type    string           `json:"type"`
-	ID      string           `json:"id,omitempty"`
-	Request *ApprovalRequest `json:"request,omitempty"`
-	Status  *Status          `json:"status,omitempty"`
-	Event   *Event           `json:"event,omitempty"`
-	Keys    []KeyInfo        `json:"keys,omitempty"`
+	flushed      chan struct{}
+	Type         string           `json:"type"`
+	ID           string           `json:"id,omitempty"`
+	Request      *ApprovalRequest `json:"request,omitempty"`
+	Status       *Status          `json:"status,omitempty"`
+	Event        *Event           `json:"event,omitempty"`
+	Keys         []KeyInfo        `json:"keys,omitempty"`
+	GraceSeconds int              `json:"graceSeconds,omitempty"`
 }
 
 type ControlCommand struct {
-	ID       string            `json:"id,omitempty"`
-	Type     string            `json:"type"`
-	Session  string            `json:"session,omitempty"`
-	Decision *approvalDecision `json:"decision,omitempty"`
-	KeyOrder []string          `json:"keyOrder,omitempty"`
+	ID           string            `json:"id,omitempty"`
+	Type         string            `json:"type"`
+	Session      string            `json:"session,omitempty"`
+	Decision     *approvalDecision `json:"decision,omitempty"`
+	KeyOrder     []string          `json:"keyOrder,omitempty"`
+	GraceSeconds *int              `json:"graceSeconds,omitempty"`
 }
 
 // stdin/stdout are anonymous pipes inherited from the launching app. There is
@@ -119,6 +121,12 @@ func (c *ControlChannel) ReadCommands(a *Approver, keys *Agent) {
 			if command.Decision != nil {
 				a.Decide(*command.Decision)
 			}
+		case "approvalWindow":
+			if command.GraceSeconds == nil {
+				return
+			}
+			applied := a.SetGraceWindow(*command.GraceSeconds)
+			_ = c.Send(ControlEvent{Type: "approvalWindow", GraceSeconds: applied})
 		case "revoke":
 			a.Revoke()
 			_ = c.Send(ControlEvent{Type: "revoked"})

@@ -303,4 +303,26 @@ final class AppModelTests: XCTestCase {
         model.disableSystemUnlock()
         XCTAssertNil(preferences.object(forKey: "systemUnlockAccount"))
     }
+
+    func testApprovalGraceDefaultsToFiveMinutesAndPersists() {
+        let (model, preferences) = makeModel(services())
+        XCTAssertEqual(model.approvalGraceMinutes, 5)
+        XCTAssertEqual(model.approvalGraceSeconds, 300)
+        model.setApprovalGraceMinutes(30)
+        XCTAssertEqual(model.approvalGraceMinutes, 30)
+        XCTAssertEqual(model.approvalGraceSeconds, 1800)
+        XCTAssertEqual(preferences.integer(forKey: "approvalGraceMinutes"), 30)
+        model.setApprovalGraceMinutes(7)
+        XCTAssertEqual(model.approvalGraceMinutes, 30)
+    }
+
+    func testApprovalGraceReadsSavedValueAndRejectsInvalidStoredValue() {
+        let (_, preferences) = makeModel(services())
+        preferences.set(60, forKey: "approvalGraceMinutes")
+        let saved = AppModel(services: services(), preferences: preferences, agent: AgentController(loadHistory: false))
+        XCTAssertEqual(saved.approvalGraceMinutes, 60)
+        preferences.set(301, forKey: "approvalGraceMinutes")
+        let invalid = AppModel(services: services(), preferences: preferences, agent: AgentController(loadHistory: false))
+        XCTAssertEqual(invalid.approvalGraceMinutes, 5)
+    }
 }

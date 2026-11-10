@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -16,13 +18,23 @@ func localized(english string) string {
 }
 
 func approvalMessage(reason string) string {
+	if strings.HasPrefix(reason, "allowed:") {
+		if seconds, err := strconv.Atoi(strings.TrimPrefix(reason, "allowed:")); err == nil {
+			return allowedMessage(seconds)
+		}
+	}
+	if strings.HasPrefix(reason, "cached:") {
+		if seconds, err := strconv.Atoi(strings.TrimPrefix(reason, "cached:")); err == nil {
+			return cachedMessage(seconds)
+		}
+	}
 	switch reason {
 	case "unavailable":
 		return localized("Approval channel unavailable")
 	case "closed":
 		return localized("Approval channel closed")
 	case "cached":
-		return localized("Temporary approval is valid")
+		return localized("Cached approval is valid")
 	case "busy":
 		return localized("Too many pending requests. Try again later.")
 	case "create_failed":
@@ -37,11 +49,43 @@ func approvalMessage(reason string) string {
 		return localized("Approval request expired")
 	case "denied":
 		return localized("Denied by user")
+	case "allowed_once":
+		return localized("Allowed once")
 	case "allowed":
+		// Older logs used this reason for a cached grant.
 		return localized("Allowed by user")
 	default:
 		return localized("Approval channel unavailable")
 	}
+}
+
+func allowedMessage(seconds int) string {
+	if seconds <= 0 {
+		return localized("Allowed once")
+	}
+	return durationMessage("Allowed", seconds)
+}
+
+func cachedMessage(seconds int) string {
+	return durationMessage("Cached approval is valid", seconds)
+}
+
+// durationMessage uses a singular unit for exactly one minute or second so
+// English activity details do not say "1 minutes" or "1 seconds".
+func durationMessage(prefix string, seconds int) string {
+	if seconds%60 == 0 {
+		minutes := seconds / 60
+		unit := "minutes"
+		if minutes == 1 {
+			unit = "minute"
+		}
+		return fmt.Sprintf(localized(prefix+" for %d "+unit), minutes)
+	}
+	unit := "seconds"
+	if seconds == 1 {
+		unit = "second"
+	}
+	return fmt.Sprintf(localized(prefix+" for %d "+unit), seconds)
 }
 
 var chineseMessages = map[string]string{
@@ -51,6 +95,16 @@ var chineseMessages = map[string]string{
 	"The SSH socket stopped unexpectedly.":                                 "SSH 套接字意外停止。",
 	"%s: missing private key":                                              "%s: 没有私钥字段",
 	"Allowed by user":                                                      "用户允许",
+	"Allowed once":                                                         "已允许一次",
+	"Allowed for %d minute":                                                "已允许 %d 分钟",
+	"Allowed for %d minutes":                                               "已允许 %d 分钟",
+	"Allowed for %d second":                                                "已允许 %d 秒",
+	"Allowed for %d seconds":                                               "已允许 %d 秒",
+	"Cached approval is valid":                                             "临时授权有效（缓存）",
+	"Cached approval is valid for %d minute":                               "临时授权有效（缓存，%d 分钟）",
+	"Cached approval is valid for %d minutes":                              "临时授权有效（缓存，%d 分钟）",
+	"Cached approval is valid for %d second":                               "临时授权有效（缓存，%d 秒）",
+	"Cached approval is valid for %d seconds":                              "临时授权有效（缓存，%d 秒）",
 	"An unknown key was requested.":                                        "请求了未知密钥",
 	"Another agent is already running.":                                    "另一个 agent 已在运行",
 	"Another agent is running. Quit the previous VaultSSH instance first.": "另一个 agent 已在运行，请先退出旧版 VaultSSH",

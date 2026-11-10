@@ -39,8 +39,11 @@ time or bug-bounty program.
   installed executable. Prompts do not protect against root, a compromised
   dependency, or arbitrary code with equivalent access to these processes.
 - Temporary approvals match executable path, parent executable path and key,
-  for at most five minutes. Unknown identities and recognized script runtimes
-  (including parent runtimes) cannot cache grants. Runtime recognition uses
+  for the configured window: 5 minutes by default, 30 or 60 minutes when
+  selected in Settings. The helper accepts only those values (hard maximum
+  60 minutes) and trims existing grants when the window is shortened. Unknown
+  identities and recognized script runtimes (including parent runtimes) cannot
+  cache grants. Runtime recognition uses
   executable names, not attestation: renamed runtimes and replaced binaries
   remain limitations. Approvals do not restrict remote destinations; agent
   forwarding obscures the remote caller behind local SSH.

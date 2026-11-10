@@ -4,11 +4,21 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 )
+
+const (
+	defaultGraceSeconds = 300
+	maxGraceSeconds     = 3600
+)
+
+// The app offers these windows. The helper rejects anything else so a broken
+// or hostile control-pipe client cannot widen the approval window.
+var supportedGraceWindows = map[int]struct{}{300: {}, 1800: {}, maxGraceSeconds: {}}
 
 type ApprovalRequest struct {
 	CacheAllowed     bool   `json:"cacheAllowed"`
@@ -32,20 +42,47 @@ type approvalDecision struct {
 }
 
 type Approver struct {
-	timeout    time.Duration
-	emit       func(ControlEvent) error
-	mu         sync.Mutex
-	cache      map[string]time.Time
-	pending    map[string]chan approvalDecision
-	closed     bool
-	generation uint64
+	timeout      time.Duration
+	emit         func(ControlEvent) error
+	mu           sync.Mutex
+	cache        map[string]time.Time
+	pending      map[string]chan approvalDecision
+	closed       bool
+	generation   uint64
+	graceSeconds int
 }
 
 func NewApprover(timeout time.Duration, emit func(ControlEvent) error) *Approver {
 	if timeout <= 0 {
 		timeout = 60 * time.Second
 	}
-	return &Approver{timeout: timeout, emit: emit, cache: make(map[string]time.Time), pending: make(map[string]chan approvalDecision)}
+	return &Approver{timeout: timeout, emit: emit, cache: make(map[string]time.Time), pending: make(map[string]chan approvalDecision), graceSeconds: defaultGraceSeconds}
+}
+
+// SetGraceWindow applies the approval window selected in the app. Only the
+// inherited control pipe calls this. Unsupported values are ignored, and any
+// existing grant is trimmed so it cannot outlive the new window.
+func (a *Approver) SetGraceWindow(seconds int) int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if _, ok := supportedGraceWindows[seconds]; !ok {
+		return a.graceSeconds
+	}
+	a.graceSeconds = seconds
+	a.trimCacheLocked(seconds)
+	return seconds
+}
+
+func (a *Approver) trimCacheLocked(seconds int) {
+	now := time.Now()
+	maxUntil := now.Add(time.Duration(seconds) * time.Second)
+	for scope, until := range a.cache {
+		if !now.Before(until) {
+			delete(a.cache, scope)
+		} else if until.After(maxUntil) {
+			a.cache[scope] = maxUntil
+		}
+	}
 }
 
 // Only the inherited control pipe calls Decide. Files and SSH clients cannot
@@ -102,8 +139,14 @@ func (a *Approver) Approve(peer PeerInfo, key *Key) (bool, string) {
 		}
 	}
 	if scope != "" && time.Now().Before(a.cache[scope]) {
+		// Log the lifetime left on this grant, not the currently configured
+		// window: widening the setting must not make an old grant look longer.
+		seconds := int(time.Until(a.cache[scope]) / time.Second)
+		if seconds < 1 {
+			seconds = 1
+		}
 		a.mu.Unlock()
-		return true, "cached"
+		return true, fmt.Sprintf("cached:%d", seconds)
 	}
 	if len(a.pending) >= 32 {
 		a.mu.Unlock()
@@ -145,12 +188,14 @@ func (a *Approver) Approve(peer PeerInfo, key *Key) (bool, string) {
 		if !decision.Allow {
 			return false, "denied"
 		}
-		// The UI supports once or five minutes; don't accept longer grants.
-		seconds := min(max(decision.GraceSeconds, 0), 300)
+		// The app's configured window is the ceiling. A decision from the
+		// control pipe can shorten a grant but never widen it.
+		seconds := min(max(decision.GraceSeconds, 0), a.graceSeconds)
 		if scope != "" && seconds > 0 {
 			a.cache[scope] = time.Now().Add(time.Duration(seconds) * time.Second)
+			return true, fmt.Sprintf("allowed:%d", seconds)
 		}
-		return true, "allowed"
+		return true, "allowed_once"
 	}
 }
 

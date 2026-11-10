@@ -20,6 +20,7 @@ type Event struct {
 	Fingerprint   string `json:"fingerprint,omitempty"`
 	Result        string `json:"result,omitempty"`
 	Reason        string `json:"reason,omitempty"`
+	GraceSeconds  int    `json:"graceSeconds,omitempty"`
 	Detail        string `json:"detail,omitempty"`
 }
 

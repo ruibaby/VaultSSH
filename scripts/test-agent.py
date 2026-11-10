@@ -69,6 +69,13 @@ def main(helper):
         try:
             send({"type": "session", "session": "mock"})
             wait_for(lambda m: m.get("status", {}).get("state") == "ready")
+            # Only the inherited control pipe can set the window, and the helper
+            # rejects values it does not offer instead of widening the grant.
+            for requested, applied in [(1800, 1800), (301, 1800), (3601, 1800),
+                                       (0, 1800), (-1, 1800), (3600, 3600), (300, 300)]:
+                send({"type": "approvalWindow", "graceSeconds": requested})
+                ack = wait_for(lambda m: m["type"] == "approvalWindow")
+                assert ack["graceSeconds"] == applied, (requested, ack)
             # Connection exhaustion must reject excess clients without killing the helper.
             sockets = []
             try:
@@ -82,6 +89,72 @@ def main(helper):
                 for connection in sockets:
                     connection.close()
             time.sleep(0.1)
+            # A non-interpreter launcher makes the caller cacheable, so the
+            # cached log can be checked against the grant's real expiry. Widen
+            # the setting before the second signature: the log must still show
+            # the remaining 30 minutes, not the new 60-minute window.
+            launcher_source = root / "launcher.go"
+            launcher = root / "launcher"
+            launcher_source.write_text(
+                "package main\n"
+                "\n"
+                "import (\n"
+                "  \"os\"\n"
+                "  \"os/exec\"\n"
+                ")\n"
+                "\n"
+                "func main() {\n"
+                "  if len(os.Args) < 2 { os.Exit(2) }\n"
+                "  cmd := exec.Command(os.Args[1], os.Args[2:]...)\n"
+                "  cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr\n"
+                "  if err := cmd.Run(); err != nil {\n"
+                "    if exit, ok := err.(*exec.ExitError); ok { os.Exit(exit.ExitCode()) }\n"
+                "    os.Exit(1)\n"
+                "  }\n"
+                "}\n"
+            )
+            subprocess.run(["go", "build", "-o", str(launcher), str(launcher_source)], check=True)
+
+            def sign_cached():
+                environment = os.environ.copy()
+                environment["SSH_AUTH_SOCK"] = str(root / "agent.sock")
+                client = subprocess.Popen([str(launcher), "/usr/bin/ssh-add", "-T", str(key) + ".pub"],
+                                          env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                clients.append(client)
+                return client
+
+            send({"type": "approvalWindow", "graceSeconds": 1800})
+            assert wait_for(lambda m: m["type"] == "approvalWindow")["graceSeconds"] == 1800
+            client = sign_cached()
+            request = wait_for(lambda m: m["type"] == "approval")["request"]
+            assert request["cacheAllowed"] is True, "Non-interpreter caller was not cacheable"
+            decision(request, True, 1800)
+            successful(client)
+
+            send({"type": "approvalWindow", "graceSeconds": 3600})
+            assert wait_for(lambda m: m["type"] == "approvalWindow")["graceSeconds"] == 3600
+            client = sign_cached()
+            try:
+                _, error = client.communicate(timeout=2)
+            except subprocess.TimeoutExpired:
+                raise AssertionError("Cached grant requested another approval") from None
+            assert client.returncode == 0, error
+            deadline = time.monotonic() + 2
+            cached = []
+            while not cached and time.monotonic() < deadline:
+                events = [json.loads(line) for line in (root / "events.jsonl").read_text().splitlines() if line]
+                cached = [event for event in events if event.get("reason") == "cached"]
+                if not cached:
+                    time.sleep(0.02)
+            assert cached, "Missing cached activity event"
+            seconds = cached[-1]["graceSeconds"]
+            assert 1790 <= seconds <= 1800, f"cached log says {seconds}s, expected the original ~1800s grant"
+            assert "60 minutes" not in cached[-1]["detail"], cached[-1]["detail"]
+            send({"type": "revoke"})
+            wait_for(lambda m: m["type"] == "revoked")
+            send({"type": "approvalWindow", "graceSeconds": 300})
+            assert wait_for(lambda m: m["type"] == "approvalWindow")["graceSeconds"] == 300
+
             client = sign()
             request = wait_for(lambda m: m["type"] == "approval")["request"]
             # The old attack surface must have no effect on the new helper.
@@ -106,8 +179,13 @@ def main(helper):
             decision(request, True)
             successful(client)
 
+            client = sign()
+            wait_for(lambda m: m["type"] == "approval")
             send({"type": "revoke"})
             wait_for(lambda m: m["type"] == "revoked")
+            client.communicate(timeout=5)
+            assert client.returncode != 0, "Clear all approvals did not invalidate the pending request"
+
             client = sign()
             wait_for(lambda m: m["type"] == "approval")
             helper_process.stdin.close()  # Parent disconnect must terminate the helper.
@@ -116,7 +194,7 @@ def main(helper):
             assert client.returncode != 0, "Disconnected app still allowed signing"
             assert not (root / "agent.sock").exists(), "Socket survived helper exit"
             assert not (root / "session").exists(), "Session was written to disk"
-            print("PASS: forged file rejected; deny, allow once, interpreter grant isolation, connection cap, revoke, OpenSSH verification and parent EOF")
+            print("PASS: approval window validation and cached remaining lifetime; forged file rejected; deny, allow once, interpreter grant isolation, connection cap, clear all approvals, OpenSSH verification and parent EOF")
         finally:
             for client in clients:
                 if client.poll() is None:

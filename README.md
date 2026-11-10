@@ -3,7 +3,7 @@
 A native macOS SSH agent for keys stored in Bitwarden or a compatible self-hosted vault.
 Approve SSH signatures without keeping the Bitwarden desktop app open.
 
-- Approve once or for five minutes, inspect caller processes, and revoke approvals.
+- Approve once or for 5, 30 or 60 minutes, inspect caller processes, and clear all approvals.
 - Choose the order in which this Mac offers keys; search activity and failures.
 - English and Simplified Chinese, following your macOS app language.
 
@@ -174,6 +174,8 @@ stores a protected session in Keychain. Every launch still starts locked; waking
 never restores access. Quitting stops the listener and clears PIN access.
 Temporary approvals identify local executable paths and keys, not remote hosts;
 known interpreters and unknown callers require approval for each signature.
+The approval window is 5 minutes by default and can be set to 5, 30 or 60 minutes
+in **Settings → SSH Approvals**; shortening it also shortens active grants.
 Passphrase-protected private keys are not supported. No independent security
 audit has been performed. The managed CLI includes pinned dependency security
 updates, and the security release gate blocks high-severity findings. Read the

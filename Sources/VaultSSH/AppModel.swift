@@ -21,6 +21,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var pinEnabled = false
     @Published private(set) var pinConfigured: Bool
     @Published private(set) var idleLockMinutes: Int
+    @Published private(set) var approvalGraceMinutes: Int
     @Published var showsUnlockPanel = false
     @Published private(set) var isConfiguringUnlock = false
     private var pinSession: PINSession?
@@ -43,8 +44,10 @@ final class AppModel: ObservableObject {
     private var unlockTask: Task<String, Error>?
     private var detection = UUID()
     private var agentCancellable: AnyCancellable?
-    static let approvalGraceSeconds = 300
-    static let approvalGraceLabel = L10n.text("5 minutes")
+    static let approvalGraceMinutesOptions = [5, 30, 60]
+
+    var approvalGraceSeconds: Int { approvalGraceMinutes * 60 }
+    var approvalGraceLabel: String { L10n.text("%ld minutes", approvalGraceMinutes) }
 
     init(services: AppServices = AppServices(), preferences: UserDefaults = .standard,
          agent: AgentController? = nil) {
@@ -54,6 +57,8 @@ final class AppModel: ObservableObject {
         systemUnlockEnabled = preferences.bool(forKey: "systemUnlockEnabled")
         pinConfigured = preferences.bool(forKey: "pinConfigured")
         idleLockMinutes = preferences.integer(forKey: "idleLockMinutes")
+        let savedGrace = preferences.integer(forKey: "approvalGraceMinutes")
+        approvalGraceMinutes = Self.approvalGraceMinutesOptions.contains(savedGrace) ? savedGrace : 5
         bwPathOverride = preferences.string(forKey: "bwPathOverride") ?? ""
         agentCancellable = self.agent.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
         unlockCancellable = self.agent.$unlockRequest.sink { [weak self] request in
@@ -112,7 +117,7 @@ final class AppModel: ObservableObject {
             cliPath = "bw"
             session = "mock"
             hasSession = true
-            await agent.start(session: "mock", bwPath: "bw")
+            await agent.start(session: "mock", bwPath: "bw", graceSeconds: approvalGraceSeconds)
             return
         }
         lock() // Remove legacy persisted sessions; every launch requires a fresh unlock.
@@ -191,7 +196,7 @@ final class AppModel: ObservableObject {
         guard !isBusy, cliReady, let cliPath, agent.status.state != "ready" else { return }
         guard let session else { await listenWhileLocked(); return }
         let token = operation
-        await agent.start(session: session, bwPath: cliPath)
+        await agent.start(session: session, bwPath: cliPath, graceSeconds: approvalGraceSeconds)
         guard operation == token else { return }
         if agent.status.state == "error" { errorMessage = agent.status.error }
     }
@@ -235,7 +240,7 @@ final class AppModel: ObservableObject {
                 guard operation == token, !Task.isCancelled else { return }
             }
             unlockProgress = L10n.text("Loading SSH keys…")
-            await agent.resume(session: value, bwPath: cliPath, requestID: activeUnlockRequest)
+            await agent.resume(session: value, bwPath: cliPath, requestID: activeUnlockRequest, graceSeconds: approvalGraceSeconds)
             guard operation == token else { return }
             if agent.status.state != "ready" {
                 session = nil
@@ -280,7 +285,7 @@ final class AppModel: ObservableObject {
         let token = operation
         isRefreshing = true
         defer { if operation == token { isRefreshing = false } }
-        await agent.start(session: session, bwPath: cliPath ?? "bw", syncVault: true)
+        await agent.start(session: session, bwPath: cliPath ?? "bw", syncVault: true, graceSeconds: approvalGraceSeconds)
         guard operation == token else { return }
         if agent.status.state == "error" { errorMessage = agent.status.error }
     }
@@ -389,13 +394,20 @@ final class AppModel: ObservableObject {
     private func listenWhileLocked() async {
         guard listenerEnabled, !hasSession, !isUnlocking, !isInstalling, !isDetecting, !agent.helperRunning,
               cliReady, let cliPath else { return }
-        await agent.start(session: "", bwPath: cliPath, locked: true)
+        await agent.start(session: "", bwPath: cliPath, locked: true, graceSeconds: approvalGraceSeconds)
     }
 
     func setIdleLockMinutes(_ minutes: Int) {
         guard [0, 5, 15, 30, 60].contains(minutes) else { return }
         idleLockMinutes = minutes
         preferences.set(minutes, forKey: "idleLockMinutes")
+    }
+
+    func setApprovalGraceMinutes(_ minutes: Int) {
+        guard Self.approvalGraceMinutesOptions.contains(minutes), approvalGraceMinutes != minutes else { return }
+        approvalGraceMinutes = minutes
+        preferences.set(minutes, forKey: "approvalGraceMinutes")
+        agent.setApprovalGrace(seconds: minutes * 60)
     }
 
     private func savedSession(_ value: String) -> SavedSession {
@@ -561,7 +573,7 @@ final class AppModel: ObservableObject {
             session = saved.session
             hasSession = true
             unlockProgress = L10n.text("Loading SSH keys…")
-            await agent.resume(session: saved.session, bwPath: cliPath, requestID: activeUnlockRequest)
+            await agent.resume(session: saved.session, bwPath: cliPath, requestID: activeUnlockRequest, graceSeconds: approvalGraceSeconds)
             guard operation == token else { return }
             if agent.status.state == "ready" { showsUnlockPanel = false }
             else {

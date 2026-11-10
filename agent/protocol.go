@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 
@@ -173,6 +174,12 @@ func handleConn(conn net.Conn, a *Agent, events *EventLogger, approver *Approver
 func approvalEvent(peer PeerInfo, key *Key, result, reason string) Event {
 	event := peerEvent("sign", peer, key.Name, key.Fingerprint, result, approvalMessage(reason))
 	event.Reason = reason
+	if base, value, ok := strings.Cut(reason, ":"); ok {
+		if seconds, err := strconv.Atoi(value); err == nil {
+			event.Reason = base
+			event.GraceSeconds = seconds
+		}
+	}
 	return event
 }
 

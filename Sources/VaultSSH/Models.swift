@@ -141,6 +141,7 @@ struct ControlCommand: Encodable {
     var id: String? = nil
     var decision: ApprovalDecision? = nil
     var keyOrder: [String]? = nil
+    var graceSeconds: Int? = nil
 }
 
 extension ApprovalRequest {

@@ -18,7 +18,7 @@
 "Calling Application" = "调用程序";
 "Calling Process" = "调用进程";
 "Cancel" = "取消";
-"Cancel all five-minute approvals and pending requests" = "取消所有五分钟授权和待确认请求，下次签名重新询问";
+"Cancel all temporary approvals and pending requests" = "取消所有临时授权和待确认请求，下次签名重新询问";
 "Change the SSH key order for %@ on this Mac only" = "调整 %@ 的 SSH 尝试顺序，仅保存在本机";
 "Changing the CLI path locks the vault." = "更改 CLI 路径会锁定保险库。";
 "Check Again" = "重新检测";
@@ -26,6 +26,7 @@
 "Checking CLI…" = "正在检测 CLI…";
 "Checking…" = "验证中…";
 "Close" = "关闭";
+"Clear All Approvals" = "清除所有授权";
 "Connect SSH" = "连接 SSH";
 "Connected. SSH clients can list keys. Save the configuration above to ~/.ssh/config." = "连接成功，SSH 客户端可以读取密钥。请将上方配置保存到 ~/.ssh/config。";
 "Connection failed: %@" = "连接失败：%@";
@@ -46,6 +47,7 @@
 "Could not start npm: %@\n" = "启动 npm 失败：%@\n";
 "Could not start the agent: %@" = "无法启动 agent：%@";
 "Could not update key order. Refresh your keys and retry." = "无法更新密钥顺序，请刷新密钥后重试";
+"Could not update the approval window. Restart the agent to apply it." = "无法更新授权窗口，请重启 agent 后重试";
 "Current CLI" = "当前 CLI";
 "Custom CLI Path" = "自定义 CLI 路径";
 "Demo mode" = "演示模式";
@@ -76,6 +78,7 @@
 "List" = "读取";
 "List Keys" = "列出密钥";
 "Loading Keys" = "正在读取密钥";
+"Locking, sleeping, switching users or quitting clears them too." = "锁定、睡眠、切换用户或退出时也会清除。";
 "Loading keys timed out. Check your CLI login and network, then retry." = "读取密钥超时，请检查 CLI 登录和网络后重试";
 "Local test environment" = "本地测试环境";
 "Lock" = "锁定";
@@ -105,10 +108,10 @@
 "Result" = "结果";
 "Retry Loading" = "重试加载";
 "Review Request" = "查看请求";
-"Revoke Temporary Approvals" = "撤销临时授权";
 "Revoked" = "已撤销";
 "Run this command in Terminal to sign in and complete two-factor authentication." = "在终端执行以下命令，完成登录与双重验证。";
 "SSH Configuration" = "SSH 配置";
+"SSH Approvals" = "SSH 授权";
 "SSH Signature Request" = "SSH 签名请求";
 "Save and Check" = "保存并检测";
 "Saved" = "已保存";
@@ -124,7 +127,9 @@
 "Startup & Security" = "启动与安全";
 "Succeeded" = "成功";
 "Applies only to this caller, parent process and key." = "仅授权此调用程序、父进程和密钥。";
+"Approval Window" = "授权窗口";
 "Temporary approvals revoked. The next signature will require approval." = "临时授权已全部撤销，下次签名将重新确认";
+"Temporary approvals apply only to the same caller, parent process and key." = "临时授权仅适用于相同的调用方、父进程和密钥。";
 "Test Agent Connection" = "验证 agent 连接";
 "The CLI returned no session. Please retry." = "CLI 没有返回会话，请重试";
 "The agent exited. Unlock again or retry." = "agent 已退出，请重新解锁或重试";
