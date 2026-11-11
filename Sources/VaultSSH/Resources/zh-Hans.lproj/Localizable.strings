@@ -133,6 +133,7 @@
 "Test Agent Connection" = "验证 agent 连接";
 "The CLI returned no session. Please retry." = "CLI 没有返回会话，请重试";
 "The agent exited. Unlock again or retry." = "agent 已退出，请重新解锁或重试";
+"The agent did not apply the selected approval window. Restart the agent to apply it." = "agent 未应用所选授权窗口，请重启 agent 后重试。";
 "The agent is locked; %@. Automatic session restore is disabled." = "Agent 已锁定；%@。自动恢复已禁用。";
 "The agent message is too large." = "agent 消息过大";
 "The approval channel is closed." = "授权通道已关闭";

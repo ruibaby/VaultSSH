@@ -133,6 +133,7 @@ struct ControlEvent: Decodable, Sendable {
     let status: AgentStatus?
     let event: AgentEvent?
     let keys: [KeyInfo]?
+    let graceSeconds: Int?
 }
 
 struct ControlCommand: Encodable {

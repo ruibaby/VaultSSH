@@ -133,6 +133,7 @@
 "Test Agent Connection" = "Test Agent Connection";
 "The CLI returned no session. Please retry." = "The CLI returned no session. Please retry.";
 "The agent exited. Unlock again or retry." = "The agent exited. Unlock again or retry.";
+"The agent did not apply the selected approval window. Restart the agent to apply it." = "The agent did not apply the selected approval window. Restart the agent to apply it.";
 "The agent is locked; %@. Automatic session restore is disabled." = "The agent is locked; %@. Automatic session restore is disabled.";
 "The agent message is too large." = "The agent message is too large.";
 "The approval channel is closed." = "The approval channel is closed.";
