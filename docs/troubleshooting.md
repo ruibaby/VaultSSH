@@ -69,9 +69,11 @@ that use the environment, set `SSH_AUTH_SOCK` as described in the README and run
 `ssh-add -l`. An already-running terminal or IDE may still have another socket
 path. The app must remain running, even when its main window is closed.
 
-Approvals expire after 60 seconds. **Revoke Temporary Approvals** clears the
-five-minute cache. Forwarded SSH requests identify the local forwarding process,
-not the remote host; see the [security policy](../SECURITY.md).
+Approval prompts expire after 60 seconds. **Clear All Approvals** clears the
+temporary approval cache. The window is 5 minutes by default and can be set to
+5, 30 or 60 minutes in **Settings → SSH Approvals**. Forwarded SSH requests
+identify the local forwarding process, not the remote host; see the
+[security policy](../SECURITY.md).
 
 ## Upgrade or uninstall
 

@@ -133,6 +133,7 @@ struct ControlEvent: Decodable, Sendable {
     let status: AgentStatus?
     let event: AgentEvent?
     let keys: [KeyInfo]?
+    let graceSeconds: Int?
 }
 
 struct ControlCommand: Encodable {
@@ -141,6 +142,7 @@ struct ControlCommand: Encodable {
     var id: String? = nil
     var decision: ApprovalDecision? = nil
     var keyOrder: [String]? = nil
+    var graceSeconds: Int? = nil
 }
 
 extension ApprovalRequest {

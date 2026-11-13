@@ -40,8 +40,7 @@ final class ApprovalPanelController: NSObject {
         case .signature(let request):
             view = AnyView(ApprovalView(
                 request: request,
-                graceLabel: AppModel.approvalGraceLabel,
-                onAllow: { AppModel.shared.agent.decideApproval(id: request.id, allow: true, graceSeconds: 300) },
+                onAllow: { AppModel.shared.agent.decideApproval(id: request.id, allow: true, graceSeconds: AppModel.shared.approvalGraceSeconds) },
                 onOnce: { AppModel.shared.agent.decideApproval(id: request.id, allow: true, graceSeconds: 0) },
                 onDeny: { AppModel.shared.agent.decideApproval(id: request.id, allow: false, graceSeconds: 0) }
             ))
@@ -112,7 +111,6 @@ private final class ApprovalPanel: NSPanel {
 struct ApprovalView: View {
     @EnvironmentObject private var model: AppModel
     let request: ApprovalRequest
-    let graceLabel: String
     let onAllow: () -> Void
     let onOnce: () -> Void
     let onDeny: () -> Void
@@ -148,7 +146,7 @@ struct ApprovalView: View {
                     HStack {
                         Button(L10n.text("Deny"), action: onDeny).keyboardShortcut(.cancelAction)
                         Spacer()
-                        Button(L10n.text("Allow for %@", String(graceLabel)), action: onAllow)
+                        Button(L10n.text("Allow for %@", String(model.approvalGraceLabel)), action: onAllow)
                             .disabled(request.cacheAllowed != true)
 
                         Button(L10n.text("Allow Once"), action: onOnce)

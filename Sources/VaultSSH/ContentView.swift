@@ -137,9 +137,9 @@ struct SidebarView: View {
                     }
                 }
                 if ready {
-                    Button(L10n.text("Revoke Temporary Approvals"), systemImage: "hand.raised") { model.agent.revokeApprovals() }
+                    Button(L10n.text("Clear All Approvals"), systemImage: "hand.raised") { model.agent.revokeApprovals() }
                         .buttonStyle(.borderless).font(.callout)
-                        .help(L10n.text("Cancel all five-minute approvals and pending requests"))
+                        .help(L10n.text("Cancel all temporary approvals and pending requests"))
                 }
             }
             .padding(20)
@@ -184,8 +184,8 @@ private struct PendingApprovalBanner: View {
         }
         .padding(12).background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
         .sheet(isPresented: $showRequest) {
-            ApprovalView(request: request, graceLabel: AppModel.approvalGraceLabel,
-                onAllow: { decide(true, 300) }, onOnce: { decide(true, 0) }, onDeny: { decide(false, 0) })
+            ApprovalView(request: request,
+                onAllow: { decide(true, model.approvalGraceSeconds) }, onOnce: { decide(true, 0) }, onDeny: { decide(false, 0) })
                 .environmentObject(model).padding(12)
         }
     }

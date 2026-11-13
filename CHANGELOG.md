@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Improvements
+
+- Make the temporary SSH approval window configurable at 5, 30 or 60 minutes (5 by default), keep the helper's hard 60-minute cap, trim active grants when the window is shortened, and add **Clear All Approvals**.
+
 ## [0.1.0] - 2026-11-08
 
 The first release of VaultSSH, a native macOS SSH agent for keys stored in Bitwarden.
@@ -11,7 +15,7 @@ Requires macOS 14+, Node.js 22 and npm. This release provides Apple Silicon buil
 ### Features
 
 - Load SSH keys from Bitwarden or a compatible self-hosted vault without keeping the Bitwarden desktop app running.
-- Approve signatures once or for five minutes, inspect the requesting process and its parent, and revoke approvals at any time.
+- Approve signatures once or for a temporary window, inspect the requesting process and its parent, and clear approvals at any time.
 - Unlock on demand when an SSH request arrives, with optional PIN unlock. A master-password unlock is still required after restarting the app.
 - Customize key order, browse activity, and use the app in English or Simplified Chinese.
 - Install using a drag-and-drop DMG, or download a ZIP, with SHA-256 checksums for both.

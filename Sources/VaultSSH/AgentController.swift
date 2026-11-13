@@ -16,6 +16,7 @@ final class AgentController: ObservableObject {
     private var logHandle: FileHandle?
     private var termination: Task<Void, Never>?
     private var generation = UUID()
+    private var approvalWindow = ApprovalWindowState()
     private let maxEvents = 500
     private let preferences: UserDefaults
 
@@ -47,8 +48,11 @@ final class AgentController: ObservableObject {
     var keys: [KeyInfo] { status.keys ?? [] }
     var pendingApproval: ApprovalRequest? { approvals.first }
     var isStarting: Bool { status.state == "starting" || status.state == "loading" }
+    var desiredGraceSeconds: Int { approvalWindow.desiredSeconds }
 
-    func start(session: String, bwPath: String, locked: Bool = false, syncVault: Bool = false) async {
+    func start(session: String, bwPath: String, locked: Bool = false, syncVault: Bool = false,
+               graceSeconds: Int = 300) async {
+        approvalWindow.setDesired(graceSeconds)
         stop()
         let run = generation
         await termination?.value
@@ -93,6 +97,7 @@ final class AgentController: ObservableObject {
             helperRunning = true
             try send(ControlCommand(type: "session", session: session,
                                     keyOrder: preferences.stringArray(forKey: "keyOrder") ?? []))
+            try sendApprovalWindow()
         } catch {
             stop()
             fail(L10n.text("Could not start the agent: %@", String(error.localizedDescription)))
@@ -122,15 +127,19 @@ final class AgentController: ObservableObject {
         if !Task.isCancelled { fail(L10n.text("Loading keys timed out. Check your CLI login and network, then retry.")) }
     }
 
-    func resume(session: String, bwPath: String, requestID: String?) async {
+    func resume(session: String, bwPath: String, requestID: String?, graceSeconds: Int = 300) async {
         if let requestID, unlockRequest?.id != requestID { return }
         if !helperRunning || status.state != "locked" {
-            await start(session: session, bwPath: bwPath)
+            await start(session: session, bwPath: bwPath, graceSeconds: graceSeconds)
             return
         }
         let run = generation
         status = AgentStatus(state: "loading")
-        do { try send(ControlCommand(type: "unlock", session: session, id: requestID)) }
+        do {
+            approvalWindow.setDesired(graceSeconds)
+            try sendApprovalWindow()
+            try send(ControlCommand(type: "unlock", session: session, id: requestID))
+        }
         catch { stop(); fail(error.localizedDescription); return }
         let deadline = Date().addingTimeInterval(160)
         while generation == run && !Task.isCancelled && Date() < deadline {
@@ -168,6 +177,7 @@ final class AgentController: ObservableObject {
         try? logHandle?.close()
         logHandle = nil
         helperRunning = false
+        approvalWindow.reset()
         approvals = []
         unlockRequest = nil
         status = .stopped
@@ -178,7 +188,7 @@ final class AgentController: ObservableObject {
         guard approvals.contains(where: { $0.id == id }) else { return }
         do {
             try send(ControlCommand(type: "decision", decision: ApprovalDecision(
-                id: id, allow: allow, graceSeconds: allow ? min(max(0, graceSeconds), 300) : 0
+                id: id, allow: allow, graceSeconds: allow ? min(max(0, graceSeconds), 3600) : 0
             )))
             approvals.removeAll { $0.id == id }
         } catch {
@@ -190,6 +200,13 @@ final class AgentController: ObservableObject {
     func revokeApprovals() {
         do { try send(ControlCommand(type: "revoke")) }
         catch { stop(); fail(L10n.text("Could not revoke approvals. The agent is locked.")) }
+    }
+
+    func setApprovalGrace(seconds: Int) {
+        approvalWindow.setDesired(seconds)
+        guard helperRunning else { return }
+        do { try sendApprovalWindow() }
+        catch { notice = L10n.text("Could not update the approval window. Restart the agent to apply it.") }
     }
 
     func moveKey(_ key: KeyInfo, to destination: Int) {
@@ -216,6 +233,15 @@ final class AgentController: ObservableObject {
         try input.write(contentsOf: data)
     }
 
+    private func sendApprovalWindow() throws {
+        try send(approvalWindowCommand())
+        approvalWindow.recordSent()
+    }
+
+    func approvalWindowCommand() -> ControlCommand {
+        ControlCommand(type: "approvalWindow", graceSeconds: approvalWindow.desiredSeconds)
+    }
+
     private func receive(_ message: ControlEvent, run: UUID) {
         guard generation == run else { return }
         switch message.type {
@@ -235,6 +261,10 @@ final class AgentController: ObservableObject {
             }
         case "dismiss": approvals.removeAll { $0.id == message.id }
         case "revoked": notice = L10n.text("Temporary approvals revoked. The next signature will require approval.")
+        case "approvalWindow":
+            if let applied = message.graceSeconds, approvalWindow.acknowledge(applied) {
+                notice = L10n.text("The agent did not apply the selected approval window. Restart the agent to apply it.")
+            }
         case "event":
             if let event = message.event {
                 events.append(event)
@@ -268,5 +298,28 @@ final class AgentController: ObservableObject {
         let handle = (try? FileHandle(forWritingTo: url)) ?? FileHandle.nullDevice
         _ = try? handle.seekToEnd()
         return handle
+    }
+}
+
+struct ApprovalWindowState {
+    private(set) var desiredSeconds = 300
+    private(set) var awaitingAcks = 0
+
+    mutating func setDesired(_ seconds: Int) {
+        desiredSeconds = seconds
+    }
+
+    mutating func recordSent() {
+        awaitingAcks += 1
+    }
+
+    mutating func acknowledge(_ applied: Int) -> Bool {
+        guard awaitingAcks > 0 else { return false }
+        awaitingAcks -= 1
+        return awaitingAcks == 0 && applied != desiredSeconds
+    }
+
+    mutating func reset() {
+        awaitingAcks = 0
     }
 }

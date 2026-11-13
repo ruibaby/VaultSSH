@@ -2,9 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -38,6 +41,155 @@ func approveAsync(a *Approver, p PeerInfo) <-chan bool {
 	go func() { ok, _ := a.Approve(p, testApprovalKey()); done <- ok }()
 	return done
 }
+func cacheUntil(a *Approver, peer PeerInfo) time.Time {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.cache[approvalScope(peer, testApprovalKey())]
+}
+
+func TestDefaultGraceWindowIsFiveMinutes(t *testing.T) {
+	a, _ := testApprover(time.Second)
+	if a.graceSeconds != 300 {
+		t.Fatalf("default grace = %d, want 300", a.graceSeconds)
+	}
+}
+
+func TestConfiguredWindowCachesForThirtyMinutes(t *testing.T) {
+	a, events := testApprover(time.Second)
+	if got := a.SetGraceWindow(1800); got != 1800 {
+		t.Fatalf("applied = %d", got)
+	}
+	done := approveAsync(a, testPeer())
+	req := nextRequest(t, events)
+	a.Decide(approvalDecision{ID: req.ID, Allow: true, GraceSeconds: 1800})
+	if !<-done {
+		t.Fatal("denied")
+	}
+	remaining := time.Until(cacheUntil(a, testPeer()))
+	if remaining < 29*time.Minute || remaining > 30*time.Minute {
+		t.Fatalf("cached for %v, want about 30 minutes", remaining)
+	}
+	ok, reason := a.Approve(testPeer(), testApprovalKey())
+	seconds, err := strconv.Atoi(strings.TrimPrefix(reason, "cached:"))
+	if !ok || err != nil || seconds < 1795 || seconds > 1800 {
+		t.Fatalf("second request = %v %q, want cached with about 1800 seconds left", ok, reason)
+	}
+}
+
+func TestCachedLogUsesRemainingLifetime(t *testing.T) {
+	a, events := testApprover(time.Second)
+	a.SetGraceWindow(1800)
+	done := approveAsync(a, testPeer())
+	req := nextRequest(t, events)
+	a.Decide(approvalDecision{ID: req.ID, Allow: true, GraceSeconds: 1800})
+	if !<-done {
+		t.Fatal("denied")
+	}
+	// Widening the configured window must not relabel the existing 30-minute
+	// grant as a fresh 60-minute one.
+	a.SetGraceWindow(3600)
+	until := cacheUntil(a, testPeer())
+	remaining := time.Until(until)
+	ok, reason := a.Approve(testPeer(), testApprovalKey())
+	if !ok {
+		t.Fatal("cache miss")
+	}
+	seconds, err := strconv.Atoi(strings.TrimPrefix(reason, "cached:"))
+	if err != nil {
+		t.Fatalf("reason = %q: %v", reason, err)
+	}
+	// The value is the actual remaining lifetime, truncated to whole seconds.
+	if seconds < 1795 || seconds > 1800 {
+		t.Fatalf("cached seconds = %d, remaining = %v; want about 1800, not the 3600 window", seconds, remaining)
+	}
+	if seconds > int(remaining/time.Second)+1 {
+		t.Fatalf("cached seconds = %d, remaining = %v", seconds, remaining)
+	}
+	detail := approvalMessage(reason)
+	want := fmt.Sprintf("Cached approval is valid for %d seconds", seconds)
+	if seconds%60 == 0 {
+		want = fmt.Sprintf("Cached approval is valid for %d minutes", seconds/60)
+	}
+	if detail != want {
+		t.Fatalf("detail = %q, want %q", detail, want)
+	}
+	t.Logf("remaining=%v reason=%q detail=%q", remaining, reason, detail)
+}
+
+func TestInvalidGraceWindowsAreRejected(t *testing.T) {
+	a, _ := testApprover(time.Second)
+	if got := a.SetGraceWindow(1800); got != 1800 {
+		t.Fatalf("applied = %d", got)
+	}
+	for _, value := range []int{-1, 0, 1, 301, 3599, 3601, 86400} {
+		if got := a.SetGraceWindow(value); got != 1800 {
+			t.Fatalf("accepted invalid window %d as %d", value, got)
+		}
+	}
+	if got := a.SetGraceWindow(3600); got != 3600 {
+		t.Fatalf("rejected hard maximum: %d", got)
+	}
+}
+
+func TestDecisionCannotExceedConfiguredWindow(t *testing.T) {
+	for _, tc := range []struct {
+		window   int
+		decision int
+	}{
+		{1800, 999999},
+		{300, 1800},
+		{3600, 3600},
+	} {
+		a, events := testApprover(time.Second)
+		a.SetGraceWindow(tc.window)
+		done := approveAsync(a, testPeer())
+		req := nextRequest(t, events)
+		a.Decide(approvalDecision{ID: req.ID, Allow: true, GraceSeconds: tc.decision})
+		if !<-done {
+			t.Fatal("denied")
+		}
+		remaining := time.Until(cacheUntil(a, testPeer()))
+		limit := time.Duration(tc.window) * time.Second
+		if remaining > limit+time.Second || remaining < limit-2*time.Second {
+			t.Fatalf("window %d decision %d cached for %v", tc.window, tc.decision, remaining)
+		}
+	}
+}
+
+func TestShorteningWindowTrimsExistingGrants(t *testing.T) {
+	a, events := testApprover(time.Second)
+	a.SetGraceWindow(3600)
+	done := approveAsync(a, testPeer())
+	req := nextRequest(t, events)
+	a.Decide(approvalDecision{ID: req.ID, Allow: true, GraceSeconds: 3600})
+	if !<-done {
+		t.Fatal("denied")
+	}
+	a.SetGraceWindow(300)
+	remaining := time.Until(cacheUntil(a, testPeer()))
+	if remaining > 300*time.Second+time.Second || remaining < 299*time.Second {
+		t.Fatalf("grant kept for %v after shortening to 5 minutes", remaining)
+	}
+}
+
+func TestLongWindowDoesNotCacheInterpreters(t *testing.T) {
+	peer := testPeer()
+	peer.Executable = "/usr/bin/python3"
+	a, events := testApprover(time.Second)
+	a.SetGraceWindow(3600)
+	for i := 0; i < 2; i++ {
+		done := approveAsync(a, peer)
+		req := nextRequest(t, events)
+		if req.CacheAllowed {
+			t.Fatal("cache offered for interpreter")
+		}
+		a.Decide(approvalDecision{ID: req.ID, Allow: true, GraceSeconds: 3600})
+		if !<-done {
+			t.Fatal("denied")
+		}
+	}
+}
+
 func TestApproverTimeoutFailsClosed(t *testing.T) {
 	a, _ := testApprover(40 * time.Millisecond)
 	if ok, _ := a.Approve(testPeer(), testApprovalKey()); ok {

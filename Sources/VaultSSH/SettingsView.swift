@@ -50,6 +50,20 @@ struct SettingsView: View {
                         Button(L10n.text("Open Login Items Settings")) { LaunchAgentManager.openSystemSettings() }
                     }
                 } header: { Label(L10n.text("Startup & Security"), systemImage: "power") }
+                Section {
+                    Picker(L10n.text("Approval Window"), selection: Binding(
+                        get: { model.approvalGraceMinutes }, set: { model.setApprovalGraceMinutes($0) })) {
+                        ForEach(AppModel.approvalGraceMinutesOptions, id: \.self) { minutes in
+                            Text(L10n.text("%ld minutes", minutes)).tag(minutes)
+                        }
+                    }
+                    Text(L10n.text("Temporary approvals apply only to the same caller, parent process and key."))
+                        .font(.caption).foregroundStyle(.secondary)
+                    Button(L10n.text("Clear All Approvals"), systemImage: "hand.raised") { model.agent.revokeApprovals() }
+                        .disabled(!model.agent.helperRunning)
+                    Text(L10n.text("Locking, sleeping, switching users or quitting clears them too."))
+                        .font(.caption).foregroundStyle(.secondary)
+                } header: { Label(L10n.text("SSH Approvals"), systemImage: "key.horizontal") }
                 QuickUnlockSettings()
                 Section {
                     ConnectionView()

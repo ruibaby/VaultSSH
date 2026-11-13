@@ -18,7 +18,7 @@
 "Calling Application" = "Calling Application";
 "Calling Process" = "Calling Process";
 "Cancel" = "Cancel";
-"Cancel all five-minute approvals and pending requests" = "Cancel all five-minute approvals and pending requests";
+"Cancel all temporary approvals and pending requests" = "Cancel all temporary approvals and pending requests";
 "Change the SSH key order for %@ on this Mac only" = "Change the SSH key order for %@ on this Mac only";
 "Changing the CLI path locks the vault." = "Changing the CLI path locks the vault.";
 "Check Again" = "Check Again";
@@ -26,6 +26,7 @@
 "Checking CLI…" = "Checking CLI…";
 "Checking…" = "Checking…";
 "Close" = "Close";
+"Clear All Approvals" = "Clear All Approvals";
 "Connect SSH" = "Connect SSH";
 "Connected. SSH clients can list keys. Save the configuration above to ~/.ssh/config." = "Connected. SSH clients can list keys. Save the configuration above to ~/.ssh/config.";
 "Connection failed: %@" = "Connection failed: %@";
@@ -46,6 +47,7 @@
 "Could not start npm: %@\n" = "Could not start npm: %@\n";
 "Could not start the agent: %@" = "Could not start the agent: %@";
 "Could not update key order. Refresh your keys and retry." = "Could not update key order. Refresh your keys and retry.";
+"Could not update the approval window. Restart the agent to apply it." = "Could not update the approval window. Restart the agent to apply it.";
 "Current CLI" = "Current CLI";
 "Custom CLI Path" = "Custom CLI Path";
 "Demo mode" = "Demo mode";
@@ -76,6 +78,7 @@
 "List" = "List";
 "List Keys" = "List Keys";
 "Loading Keys" = "Loading Keys";
+"Locking, sleeping, switching users or quitting clears them too." = "Locking, sleeping, switching users or quitting clears them too.";
 "Loading keys timed out. Check your CLI login and network, then retry." = "Loading keys timed out. Check your CLI login and network, then retry.";
 "Local test environment" = "Local test environment";
 "Lock" = "Lock";
@@ -105,10 +108,10 @@
 "Result" = "Result";
 "Retry Loading" = "Retry Loading";
 "Review Request" = "Review Request";
-"Revoke Temporary Approvals" = "Revoke Temporary Approvals";
 "Revoked" = "Revoked";
 "Run this command in Terminal to sign in and complete two-factor authentication." = "Run this command in Terminal to sign in and complete two-factor authentication.";
 "SSH Configuration" = "SSH Configuration";
+"SSH Approvals" = "SSH Approvals";
 "SSH Signature Request" = "SSH Signature Request";
 "Save and Check" = "Save and Check";
 "Saved" = "Saved";
@@ -124,10 +127,13 @@
 "Startup & Security" = "Startup & Security";
 "Succeeded" = "Succeeded";
 "Applies only to this caller, parent process and key." = "Applies only to this caller, parent process and key.";
+"Approval Window" = "Approval Window";
 "Temporary approvals revoked. The next signature will require approval." = "Temporary approvals revoked. The next signature will require approval.";
+"Temporary approvals apply only to the same caller, parent process and key." = "Temporary approvals apply only to the same caller, parent process and key.";
 "Test Agent Connection" = "Test Agent Connection";
 "The CLI returned no session. Please retry." = "The CLI returned no session. Please retry.";
 "The agent exited. Unlock again or retry." = "The agent exited. Unlock again or retry.";
+"The agent did not apply the selected approval window. Restart the agent to apply it." = "The agent did not apply the selected approval window. Restart the agent to apply it.";
 "The agent is locked; %@. Automatic session restore is disabled." = "The agent is locked; %@. Automatic session restore is disabled.";
 "The agent message is too large." = "The agent message is too large.";
 "The approval channel is closed." = "The approval channel is closed.";

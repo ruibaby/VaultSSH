@@ -85,7 +85,9 @@ and [Apple's notarization action credential guidance](https://github.com/Apple-A
 2. Run `./scripts/check.sh`, `./scripts/check-cli-runtime.sh` and
    `./scripts/security-check.sh`. Resolve security-gate failures before release.
    Check English and Chinese UI, real CLI unlock,
-   approval, deny, revocation, key order, sleep, screen lock, 15-minute idle lock
+   approval, deny, clear all approvals from both the sidebar and Settings,
+   the 5/30/60-minute approval window picker, panel button text following the
+   selected window, key order, sleep, screen lock, 15-minute idle lock
    and relaunch with a disposable test vault. Confirm waking stays locked.
    Verify PIN setup, restart requiring a master password, reuse of the original
    PIN after master unlock, five-attempt lockout, account changes, Keychain access
