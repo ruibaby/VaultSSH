@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-13
+
 ### Improvements
 
 - Make the temporary SSH approval window configurable at 5, 30 or 60 minutes (5 by default), keep the helper's hard 60-minute cap, trim active grants when the window is shortened, and add **Clear All Approvals**.
